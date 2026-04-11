@@ -101,7 +101,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="frow c3">
       <div class="fg"><label>Opening Stock</label><input type="number" id="i-stock" value="0" min="0"/></div>
       <div class="fg"><label>Min Stock (Alert Level)</label><input type="number" id="i-min" value="10" min="0"/></div>
-      <div class="fg"><label>Price per Unit (₹)</label><input type="number" id="i-price" value="0" min="0"/></div>
+      <div class="fg"><label>Brand</label><input type="text" id="i-brand" placeholder="e.g. Havells, Polycab"/></div>
     </div>
     <div class="ar"><button class="btn primary" onclick="addItem()">+ Add Item</button></div>
   </div>
@@ -250,9 +250,9 @@ function renderItems() {
   const q = (document.getElementById('itemSearch')?.value||'').toLowerCase();
   const list = items.filter(i => i.name.toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
   if (!list.length) { el.innerHTML='<div class="empty">No items found.</div>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Unit</th><th>Price</th><th></th></tr></thead><tbody>' +
+  el.innerHTML = '<table><thead><tr><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Unit</th><th>Brand</th><th></th></tr></thead><tbody>' +
     list.map(i => { const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
-      return `<tr><td style="font-weight:500">${i.name}</td><td>${i.category}</td><td style="font-weight:700;${low?'color:#c62828':''}">${s}</td><td>${i.min_stock}</td><td>${i.unit}</td><td>₹${i.price||0}</td><td><button class="btn sm dng" onclick="delItem('${i.id}')">Del</button></td></tr>`;
+      return `<tr><td style="font-weight:500">${i.name}</td><td>${i.category}</td><td style="font-weight:700;${low?'color:#c62828':''}">${s}</td><td>${i.min_stock}</td><td>${i.unit}</td><td>${i.brand||'—'}</td><td><button class="btn sm dng" onclick="delItem('${i.id}')">Del</button></td></tr>`;
     }).join('') + '</tbody></table>';
 }
 
@@ -295,7 +295,7 @@ function renderAlerts() {
   const low = items.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0);
   if(!low.length){el.innerHTML='<div style="color:#2e7d32;padding:12px 0;font-size:14px">✓ All items adequately stocked. No alerts.</div>';return;}
   el.innerHTML = low.map(i=>{const s=stock(i.id);
-    return `<div class="arow"><div><div class="aname">${i.name}</div><div class="adetail">${i.category} · ${i.unit} · ₹${i.price||0}</div></div><div class="apill">Stock: ${s} | Min: ${i.min_stock} | Need ${i.min_stock-s} more</div></div>`;
+    return `<div class="arow"><div><div class="aname">${i.name}</div><div class="adetail">${i.category} · ${i.unit} · ${i.brand||'—'}</div></div><div class="apill">Stock: ${s} | Min: ${i.min_stock} | Need ${i.min_stock-s} more</div></div>`;
   }).join('');
 }
 
@@ -321,12 +321,12 @@ async function addItem() {
   const name=document.getElementById('i-name').value.trim();
   if(!name){toast('Enter item name','err');return;}
   try {
-    await api('POST','items',{name,category:document.getElementById('i-cat').value,unit:document.getElementById('i-unit').value,opening_stock:parseFloat(document.getElementById('i-stock').value)||0,min_stock:parseFloat(document.getElementById('i-min').value)||0,price:parseFloat(document.getElementById('i-price').value)||0});
+    await api('POST','items',{name,category:document.getElementById('i-cat').value,unit:document.getElementById('i-unit').value,opening_stock:parseFloat(document.getElementById('i-stock').value)||0,min_stock:parseFloat(document.getElementById('i-min').value)||0,brand:document.getElementById('i-brand').value.trim()});
     toast('Item added!');
     document.getElementById('i-name').value='';
     document.getElementById('i-stock').value='0';
     document.getElementById('i-min').value='10';
-    document.getElementById('i-price').value='0';
+    document.getElementById('i-brand').value='';
     load();
   } catch(e){toast('Error: '+e.message,'err');}
 }
