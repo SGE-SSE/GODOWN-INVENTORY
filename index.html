@@ -83,7 +83,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="metric"><div class="ml">Total Items</div><div class="mv info" id="m-total">—</div></div>
     <div class="metric"><div class="ml">Low Stock</div><div class="mv danger" id="m-low">—</div></div>
     <div class="metric"><div class="ml">Today IN</div><div class="mv success" id="m-in">—</div></div>
-    <div class="metric"><div class="ml">Today OUT</div><div class="mv" id="m-out">—</div></div>
+    <div class="metric"><div class="ml">Today OUT (Categories)</div><div class="mv" id="m-out">—</div></div>
   </div>
   <div id="dashAlerts"></div>
   <div class="card"><div class="card-title">Current Stock Overview</div><div class="tw" id="dashTable"><div class="loading">Loading...</div></div></div>
@@ -116,16 +116,51 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 <div id="page-stockin" class="page">
   <div class="card">
     <div class="card-title">Record Stock IN</div>
-    <div class="frow c2">
-      <div class="fg"><label>Item *</label><select id="si-item"><option value="">-- Select Item --</option></select></div>
-      <div class="fg"><label>Quantity *</label><input type="number" id="si-qty" placeholder="Quantity" min="1"/></div>
+    <div id="si-noitems" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-bottom:14px">
+      <div style="font-weight:600;color:#f57f17;margin-bottom:4px">No items in inventory yet!</div>
+      <div style="font-size:12px;color:#666;margin-bottom:10px">Add your first item below to get started</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="fg"><label>Item Name *</label><input id="qi-name" placeholder="e.g. MCB 32A"/></div>
+        <div class="fg"><label>Category</label><select id="qi-cat"><option>Wires & Cables</option><option>Switches & Sockets</option><option>MCB & Distribution</option><option>Lights & Fixtures</option><option>Conduits & Fittings</option><option>Fans & Motors</option><option>Tools & Equipment</option><option>Other</option></select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <div class="fg"><label>Unit</label><select id="qi-unit"><option>DRUM</option><option>BAG</option><option>PKT</option><option>NOS</option><option>BUN</option><option>Meters</option><option>Rolls</option><option>Boxes</option><option>Sets</option><option>Kg</option><option>Coils</option></select></div>
+        <div class="fg"><label>Min Stock</label><input type="number" id="qi-min" value="10" min="0"/></div>
+        <div class="fg"><label>Brand</label><input id="qi-brand" placeholder="e.g. Havells"/></div>
+      </div>
+      <button class="btn primary" onclick="quickAddItem('si')">+ Add Item to Inventory</button>
     </div>
-    <div class="frow c2">
-      <div class="fg"><label>Supplier Name</label><input id="si-sup" placeholder="Supplier / Vendor name"/></div>
-      <div class="fg"><label>Date</label><input type="date" id="si-date"/></div>
+    <div id="si-form">
+      <div class="frow c2">
+        <div class="fg">
+          <label>Item * <span id="si-addlink" onclick="showQuickAdd('si')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
+          <select id="si-item"><option value="">-- Select Item --</option></select>
+        </div>
+        <div class="fg"><label>Quantity *</label><input type="number" id="si-qty" placeholder="Quantity" min="1"/></div>
+      </div>
+      <div id="si-quickadd" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:#185FA5;margin-bottom:8px">Quick Add New Item</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="fg"><label>Item Name *</label><input id="siq-name" placeholder="Item name"/></div>
+          <div class="fg"><label>Category</label><select id="siq-cat"><option>Wires & Cables</option><option>Switches & Sockets</option><option>MCB & Distribution</option><option>Lights & Fixtures</option><option>Conduits & Fittings</option><option>Fans & Motors</option><option>Tools & Equipment</option><option>Other</option></select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="fg"><label>Unit</label><select id="siq-unit"><option>DRUM</option><option>BAG</option><option>PKT</option><option>NOS</option><option>BUN</option><option>Meters</option><option>Rolls</option><option>Boxes</option><option>Sets</option><option>Kg</option><option>Coils</option></select></div>
+          <div class="fg"><label>Min Stock</label><input type="number" id="siq-min" value="10" min="0"/></div>
+          <div class="fg"><label>Brand</label><input id="siq-brand" placeholder="e.g. Havells"/></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary sm" onclick="inlineAddItem('si')">+ Save Item</button>
+          <button class="btn sm" onclick="hideQuickAdd('si')">Cancel</button>
+        </div>
+      </div>
+      <div class="frow c2">
+        <div class="fg"><label>Supplier Name</label><input id="si-sup" placeholder="Supplier / Vendor name"/></div>
+        <div class="fg"><label>Date</label><input type="date" id="si-date"/></div>
+      </div>
+      <div class="frow"><div class="fg"><label>Note</label><input id="si-note" placeholder="Invoice no. or remarks"/></div></div>
+      <div class="ar"><button class="btn primary" onclick="addStockIn()">+ Add Stock IN</button></div>
     </div>
-    <div class="frow"><div class="fg"><label>Note</label><input id="si-note" placeholder="Invoice no. or remarks"/></div></div>
-    <div class="ar"><button class="btn primary" onclick="addStockIn()">+ Add Stock IN</button></div>
   </div>
   <div class="card"><div class="card-title">Recent Stock IN</div><div class="tw" id="siTable"><div class="loading">Loading...</div></div></div>
 </div>
@@ -134,16 +169,41 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 <div id="page-stockout" class="page">
   <div class="card">
     <div class="card-title">Record Stock OUT</div>
-    <div class="frow c2">
-      <div class="fg"><label>Item *</label><select id="so-item"><option value="">-- Select Item --</option></select></div>
-      <div class="fg"><label>Quantity *</label><input type="number" id="so-qty" placeholder="Quantity" min="1"/></div>
+    <div id="so-noitems" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-bottom:14px">
+      <div style="font-weight:600;color:#f57f17;margin-bottom:4px">No items in inventory yet!</div>
+      <div style="font-size:12px;color:#666">Please go to the <strong>Items tab</strong> or <strong>Stock IN tab</strong> to add items first.</div>
     </div>
-    <div class="frow c2">
-      <div class="fg"><label>Customer / Purpose</label><input id="so-cust" placeholder="Customer name or purpose"/></div>
-      <div class="fg"><label>Date</label><input type="date" id="so-date"/></div>
+    <div id="so-form">
+      <div class="frow c2">
+        <div class="fg">
+          <label>Item * <span id="so-addlink" onclick="showQuickAdd('so')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
+          <select id="so-item"><option value="">-- Select Item --</option></select>
+        </div>
+        <div class="fg"><label>Quantity *</label><input type="number" id="so-qty" placeholder="Quantity" min="1"/></div>
+      </div>
+      <div id="so-quickadd" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:#185FA5;margin-bottom:8px">Quick Add New Item</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="fg"><label>Item Name *</label><input id="soq-name" placeholder="Item name"/></div>
+          <div class="fg"><label>Category</label><select id="soq-cat"><option>Wires & Cables</option><option>Switches & Sockets</option><option>MCB & Distribution</option><option>Lights & Fixtures</option><option>Conduits & Fittings</option><option>Fans & Motors</option><option>Tools & Equipment</option><option>Other</option></select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="fg"><label>Unit</label><select id="soq-unit"><option>DRUM</option><option>BAG</option><option>PKT</option><option>NOS</option><option>BUN</option><option>Meters</option><option>Rolls</option><option>Boxes</option><option>Sets</option><option>Kg</option><option>Coils</option></select></div>
+          <div class="fg"><label>Min Stock</label><input type="number" id="soq-min" value="10" min="0"/></div>
+          <div class="fg"><label>Brand</label><input id="soq-brand" placeholder="e.g. Havells"/></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary sm" onclick="inlineAddItem('so')">+ Save Item</button>
+          <button class="btn sm" onclick="hideQuickAdd('so')">Cancel</button>
+        </div>
+      </div>
+      <div class="frow c2">
+        <div class="fg"><label>Customer / Purpose</label><input id="so-cust" placeholder="Customer name or purpose"/></div>
+        <div class="fg"><label>Date</label><input type="date" id="so-date"/></div>
+      </div>
+      <div class="frow"><div class="fg"><label>Note</label><input id="so-note" placeholder="Bill no. or remarks"/></div></div>
+      <div class="ar"><button class="btn primary" onclick="addStockOut()">+ Record Stock OUT</button></div>
     </div>
-    <div class="frow"><div class="fg"><label>Note</label><input id="so-note" placeholder="Bill no. or remarks"/></div></div>
-    <div class="ar"><button class="btn primary" onclick="addStockOut()">+ Record Stock OUT</button></div>
   </div>
   <div class="card"><div class="card-title">Recent Stock OUT</div><div class="tw" id="soTable"><div class="loading">Loading...</div></div></div>
 </div>
@@ -178,7 +238,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 const URL = 'https://ibawonlchzxmocoxkirz.supabase.co';
 const KEY = 'sb_publishable_j3BvHCejXy9hOnlB0EpcSw_6nJM5N-l';
 
-const H = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+const H = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation', 'X-Upsert': 'true' };
 
 async function api(method, path, body) {
   const opts = { method, headers: H };
@@ -226,34 +286,88 @@ function renderAll() {
 function renderDash() {
   const td = today();
   const tIn = txns.filter(t => t.type==='IN' && t.date===td).reduce((s,t)=>s+t.qty,0);
-  const tOut = txns.filter(t => t.type==='OUT' && t.date===td).reduce((s,t)=>s+t.qty,0);
+  const tOutCats = new Set(txns.filter(t => t.type==='OUT' && t.date===td).map(t=>t.item_id)).size;
   const low = items.filter(i => stock(i.id) <= i.min_stock && i.min_stock > 0);
   document.getElementById('m-total').textContent = items.length;
   document.getElementById('m-low').textContent = low.length;
   document.getElementById('m-in').textContent = tIn;
-  document.getElementById('m-out').textContent = tOut;
+  document.getElementById('m-out').textContent = tOutCats;
 
   const da = document.getElementById('dashAlerts');
   da.innerHTML = low.length ? '<div class="card" style="border-left:4px solid #c62828"><div class="card-title" style="color:#c62828">⚠ Low Stock ('+low.length+')</div>' +
-    low.map(i=>`<div class="arow"><div><div class="aname">${i.name}</div><div class="adetail">${i.category}</div></div><div class="apill">Stock: ${stock(i.id)} | Min: ${i.min_stock}</div></div>`).join('')+'</div>' : '';
+    low.map(i=>`<div class="arow"><div><div class="aname">${i.name}</div><div class="adetail">${i.category} · ${i.brand||'—'}</div></div><div class="apill">Stock: ${stock(i.id)} | Min: ${i.min_stock}</div></div>`).join('')+'</div>' : '';
 
   const el = document.getElementById('dashTable');
   if (!items.length) { el.innerHTML='<div class="empty">No items yet. Add from Items tab.</div>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Item</th><th>Category</th><th>Stock</th><th>Unit</th><th>Min</th><th>Status</th></tr></thead><tbody>' +
+  el.innerHTML = '<table><thead><tr><th>Item</th><th>Category</th><th>Brand</th><th>Stock</th><th>Unit</th><th>Min</th><th>Status</th></tr></thead><tbody>' +
     items.map(i => { const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
-      return `<tr><td style="font-weight:500">${i.name}</td><td style="color:#666">${i.category}</td><td style="font-weight:700;${low?'color:#c62828':''}">${s}</td><td>${i.unit}</td><td>${i.min_stock}</td><td><span class="badge ${low?'low':'ok'}">${low?'Low':'OK'}</span></td></tr>`;
+      return `<tr><td style="font-weight:500">${i.name}</td><td style="color:#666">${i.category}</td><td style="color:#666">${i.brand||'—'}</td><td style="font-weight:700;${low?'color:#c62828':''}">${s}</td><td>${i.unit}</td><td>${i.min_stock}</td><td><span class="badge ${low?'low':'ok'}">${low?'Low':'OK'}</span></td></tr>`;
     }).join('') + '</tbody></table>';
 }
+
+const CATS = ['Wires & Cables','Switches & Sockets','MCB & Distribution','Lights & Fixtures','Conduits & Fittings','Fans & Motors','Tools & Equipment','Other'];
+const UNITS = ['DRUM','BAG','PKT','NOS','BUN','Meters','Rolls','Boxes','Sets','Kg','Coils'];
+
+function catOpts(sel){ return CATS.map(c=>`<option${c===sel?' selected':''}>${c}</option>`).join(''); }
+function unitOpts(sel){ return UNITS.map(u=>`<option${u===sel?' selected':''}>${u}</option>`).join(''); }
+
+let editingId = null;
 
 function renderItems() {
   const el = document.getElementById('itemsTable');
   const q = (document.getElementById('itemSearch')?.value||'').toLowerCase();
   const list = items.filter(i => i.name.toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
   if (!list.length) { el.innerHTML='<div class="empty">No items found.</div>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Unit</th><th>Brand</th><th></th></tr></thead><tbody>' +
-    list.map(i => { const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
-      return `<tr><td style="font-weight:500">${i.name}</td><td>${i.category}</td><td style="font-weight:700;${low?'color:#c62828':''}">${s}</td><td>${i.min_stock}</td><td>${i.unit}</td><td>${i.brand||'—'}</td><td><button class="btn sm dng" onclick="delItem('${i.id}')">Del</button></td></tr>`;
+  el.innerHTML = '<table><thead><tr><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Unit</th><th>Brand</th><th style="min-width:100px"></th></tr></thead><tbody>' +
+    list.map(i => {
+      const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
+      if(editingId === i.id) {
+        return `<tr style="background:#f0f7ff">
+          <td><input id="e-name" value="${i.name}" style="padding:5px 7px;font-size:12px"/></td>
+          <td><select id="e-cat" style="padding:5px 7px;font-size:12px">${catOpts(i.category)}</select></td>
+          <td style="font-weight:700;${low?'color:#c62828':''}">${s}</td>
+          <td><input id="e-min" type="number" value="${i.min_stock}" style="padding:5px 7px;font-size:12px;width:60px"/></td>
+          <td><select id="e-unit" style="padding:5px 7px;font-size:12px">${unitOpts(i.unit)}</select></td>
+          <td><input id="e-brand" value="${i.brand||''}" placeholder="Brand" style="padding:5px 7px;font-size:12px"/></td>
+          <td style="white-space:nowrap">
+            <button class="btn sm primary" onclick="saveEdit('${i.id}')" style="margin-right:4px">Save</button>
+            <button class="btn sm" onclick="cancelEdit()">✕</button>
+          </td>
+        </tr>`;
+      }
+      return `<tr>
+        <td style="font-weight:500">${i.name}</td>
+        <td>${i.category}</td>
+        <td style="font-weight:700;${low?'color:#c62828':''}">${s}</td>
+        <td>${i.min_stock}</td>
+        <td>${i.unit}</td>
+        <td>${i.brand||'—'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn sm" onclick="startEdit('${i.id}')" style="margin-right:4px">Edit</button>
+          <button class="btn sm dng" onclick="delItem('${i.id}')">Del</button>
+        </td>
+      </tr>`;
     }).join('') + '</tbody></table>';
+}
+
+function startEdit(id) { editingId = id; renderItems(); }
+function cancelEdit() { editingId = null; renderItems(); }
+
+async function saveEdit(id) {
+  const name = document.getElementById('e-name').value.trim();
+  if(!name){toast('Name cannot be empty','err');return;}
+  try {
+    await api('PATCH','items?id=eq.'+id,{
+      name,
+      category: document.getElementById('e-cat').value,
+      unit: document.getElementById('e-unit').value,
+      min_stock: parseFloat(document.getElementById('e-min').value)||0,
+      brand: document.getElementById('e-brand').value.trim()
+    });
+    toast('Item updated!');
+    editingId = null;
+    load();
+  } catch(e){toast('Error: '+e.message,'err');}
 }
 
 function renderSI() {
@@ -305,6 +419,18 @@ function alertBadge() {
 }
 
 function fillSelects() {
+  const noItems = items.length === 0;
+  // Stock IN
+  const siNone = document.getElementById('si-noitems');
+  const siForm = document.getElementById('si-form');
+  if(siNone) siNone.style.display = noItems ? 'block' : 'none';
+  if(siForm) siForm.style.display = noItems ? 'none' : 'block';
+  // Stock OUT
+  const soNone = document.getElementById('so-noitems');
+  const soForm = document.getElementById('so-form');
+  if(soNone) soNone.style.display = noItems ? 'block' : 'none';
+  if(soForm) soForm.style.display = noItems ? 'none' : 'block';
+
   ['si-item','so-item'].forEach(id=>{
     const el=document.getElementById(id); if(!el)return;
     const v=el.value; el.innerHTML='<option value="">-- Select Item --</option>';
@@ -315,6 +441,45 @@ function fillSelects() {
   const v=h.value; h.innerHTML='<option value="">All Items</option>';
   items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;h.appendChild(o);});
   if(v)h.value=v;
+}
+
+function showQuickAdd(prefix) {
+  document.getElementById(prefix+'-quickadd').style.display='block';
+}
+function hideQuickAdd(prefix) {
+  document.getElementById(prefix+'-quickadd').style.display='none';
+}
+
+async function quickAddItem(prefix) {
+  const name = document.getElementById('qi-name').value.trim();
+  if(!name){toast('Enter item name','err');return;}
+  try {
+    await api('POST','items',{name,category:document.getElementById('qi-cat').value,unit:document.getElementById('qi-unit').value,opening_stock:0,min_stock:parseFloat(document.getElementById('qi-min').value)||0,brand:document.getElementById('qi-brand').value.trim()});
+    toast('Item added! Now fill in the entry.');
+    document.getElementById('qi-name').value='';
+    document.getElementById('qi-brand').value='';
+    await load();
+    const el=document.getElementById(prefix+'-item');
+    const newItem=items.find(i=>i.name===name);
+    if(newItem && el) el.value=newItem.id;
+  } catch(e){toast('Error: '+e.message,'err');}
+}
+
+async function inlineAddItem(prefix) {
+  const pfx = prefix==='si'?'siq':'soq';
+  const name = document.getElementById(pfx+'-name').value.trim();
+  if(!name){toast('Enter item name','err');return;}
+  try {
+    await api('POST','items',{name,category:document.getElementById(pfx+'-cat').value,unit:document.getElementById(pfx+'-unit').value,opening_stock:0,min_stock:parseFloat(document.getElementById(pfx+'-min').value)||0,brand:document.getElementById(pfx+'-brand').value.trim()});
+    toast('Item added to inventory!');
+    document.getElementById(pfx+'-name').value='';
+    document.getElementById(pfx+'-brand').value='';
+    hideQuickAdd(prefix);
+    await load();
+    const el=document.getElementById(prefix+'-item');
+    const newItem=items.find(i=>i.name===name);
+    if(newItem && el) el.value=newItem.id;
+  } catch(e){toast('Error: '+e.message,'err');}
 }
 
 async function addItem() {
