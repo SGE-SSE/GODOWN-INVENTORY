@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SGE-SSE LIVE TRACKING Godown Inventory</title>
+<title>SGE-SSE Inventory System</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f6fa;color:#1a1a1a;min-height:100vh}
@@ -62,7 +62,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 <body>
 
 <div class="topbar">
-  <div><div class="title">⚡ SGE-SSE GODOWN LIVE TRACKING</div><div class="sub">Inventory Management System</div></div>
+  <div><div class="title">⚡ <span id="locTitle">Godown</span> Inventory</div><div class="sub" id="locSub">Godown Stock Management</div></div>
   <div style="display:flex;align-items:center;gap:10px">
     <div class="sync" id="syncBar">Connecting...</div>
     <div id="adminBtnWrap">
@@ -85,6 +85,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
 </div>
 
+<div id="locBar" style="background:#fff;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:center;gap:0;padding:0">
+  <button onclick="switchLoc('GODOWN',this)" id="locBtn-GODOWN" style="flex:1;max-width:200px;padding:10px 20px;border:none;background:#185FA5;color:#fff;cursor:pointer;font-size:14px;font-family:inherit;font-weight:600;border-right:1px solid #e0e0e0">🏭 Godown</button>
+  <button onclick="switchLoc('OFFICE',this)" id="locBtn-OFFICE" style="flex:1;max-width:200px;padding:10px 20px;border:none;background:#f4f6fa;color:#555;cursor:pointer;font-size:14px;font-family:inherit;font-weight:500">🏢 Office</button>
+</div>
 <nav class="nav">
   <button class="active" onclick="go('dashboard',this)">Dashboard</button>
   <button onclick="go('items',this)">Items</button>
@@ -280,17 +284,34 @@ function toast(msg, type='ok') {
 }
 function sync(msg) { document.getElementById('syncBar').textContent = msg; }
 
+let currentLocation = 'GODOWN';
+
 async function load() {
   sync('Syncing...');
   try {
-    items = await api('GET', 'items?select=*&order=name');
-    txns = await api('GET', 'transactions?select=*&order=created_at.desc');
+    const allItems = await api('GET', 'items?select=*&order=name');
+    items = allItems.filter(i => (i.location || 'GODOWN') === currentLocation);
+    const allTxns = await api('GET', 'transactions?select=*&order=created_at.desc');
+    const itemIds = new Set(items.map(i=>i.id));
+    txns = allTxns.filter(t => itemIds.has(t.item_id));
     sync('Synced ' + new Date().toLocaleTimeString());
     renderAll();
   } catch(e) {
     sync('Error');
     toast('Connection error: ' + e.message, 'err');
   }
+}
+
+function switchLoc(loc, btn) {
+  currentLocation = loc;
+  editingId = null;
+  document.getElementById('locBtn-GODOWN').style.background = loc==='GODOWN' ? '#185FA5' : '#f4f6fa';
+  document.getElementById('locBtn-GODOWN').style.color = loc==='GODOWN' ? '#fff' : '#555';
+  document.getElementById('locBtn-OFFICE').style.background = loc==='OFFICE' ? '#185FA5' : '#f4f6fa';
+  document.getElementById('locBtn-OFFICE').style.color = loc==='OFFICE' ? '#fff' : '#555';
+  document.getElementById('locTitle').textContent = loc==='GODOWN' ? 'Godown' : 'Office';
+  document.getElementById('locSub').textContent = loc==='GODOWN' ? 'Godown Stock Management' : 'Office Stock Management';
+  load();
 }
 
 function stock(id) {
@@ -482,7 +503,7 @@ async function quickAddItem(prefix) {
   const name = document.getElementById('qi-name').value.trim();
   if(!name){toast('Enter item name','err');return;}
   try {
-    await api('POST','items',{name,category:document.getElementById('qi-cat').value,unit:document.getElementById('qi-unit').value,opening_stock:0,min_stock:parseFloat(document.getElementById('qi-min').value)||0,brand:document.getElementById('qi-brand').value.trim()});
+    await api('POST','items',{name,category:document.getElementById('qi-cat').value,unit:document.getElementById('qi-unit').value,opening_stock:0,min_stock:parseFloat(document.getElementById('qi-min').value)||0,brand:document.getElementById('qi-brand').value.trim(),location:currentLocation});
     toast('Item added! Now fill in the entry.');
     document.getElementById('qi-name').value='';
     document.getElementById('qi-brand').value='';
@@ -498,7 +519,7 @@ async function inlineAddItem(prefix) {
   const name = document.getElementById(pfx+'-name').value.trim();
   if(!name){toast('Enter item name','err');return;}
   try {
-    await api('POST','items',{name,category:document.getElementById(pfx+'-cat').value,unit:document.getElementById(pfx+'-unit').value,opening_stock:0,min_stock:parseFloat(document.getElementById(pfx+'-min').value)||0,brand:document.getElementById(pfx+'-brand').value.trim()});
+    await api('POST','items',{name,category:document.getElementById(pfx+'-cat').value,unit:document.getElementById(pfx+'-unit').value,opening_stock:0,min_stock:parseFloat(document.getElementById(pfx+'-min').value)||0,brand:document.getElementById(pfx+'-brand').value.trim(),location:currentLocation});
     toast('Item added to inventory!');
     document.getElementById(pfx+'-name').value='';
     document.getElementById(pfx+'-brand').value='';
@@ -514,7 +535,7 @@ async function addItem() {
   const name=document.getElementById('i-name').value.trim();
   if(!name){toast('Enter item name','err');return;}
   try {
-    await api('POST','items',{name,category:document.getElementById('i-cat').value,unit:document.getElementById('i-unit').value,opening_stock:parseFloat(document.getElementById('i-stock').value)||0,min_stock:parseFloat(document.getElementById('i-min').value)||0,brand:document.getElementById('i-brand').value.trim()});
+    await api('POST','items',{name,category:document.getElementById('i-cat').value,unit:document.getElementById('i-unit').value,opening_stock:parseFloat(document.getElementById('i-stock').value)||0,min_stock:parseFloat(document.getElementById('i-min').value)||0,brand:document.getElementById('i-brand').value.trim(),location:currentLocation});
     toast('Item added!');
     document.getElementById('i-name').value='';
     document.getElementById('i-stock').value='0';
