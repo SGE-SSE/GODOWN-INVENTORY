@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Electrical Godown Inventory</title>
+<title>SGE-SSE LIVE TRACKING Godown Inventory</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f6fa;color:#1a1a1a;min-height:100vh}
@@ -63,7 +63,26 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
 <div class="topbar">
   <div><div class="title">⚡ Electrical Godown</div><div class="sub">Inventory Management System</div></div>
-  <div class="sync" id="syncBar">Connecting...</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="sync" id="syncBar">Connecting...</div>
+    <div id="adminBtnWrap">
+      <button onclick="showPinBox()" id="adminLoginBtn" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:5px 12px;border-radius:16px;cursor:pointer;font-size:12px;font-family:inherit">🔐 Admin</button>
+      <button onclick="adminLogout()" id="adminLogoutBtn" style="display:none;background:#e53935;border:none;color:#fff;padding:5px 12px;border-radius:16px;cursor:pointer;font-size:12px;font-family:inherit">✓ Admin — Logout</button>
+    </div>
+  </div>
+</div>
+<!-- PIN MODAL -->
+<div id="pinOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;min-width:280px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px">Admin Login</div>
+    <div style="font-size:13px;color:#666;margin-bottom:16px">Enter PIN to access edit controls</div>
+    <input type="password" id="pinInput" placeholder="Enter PIN" maxlength="10" style="text-align:center;font-size:18px;letter-spacing:4px;margin-bottom:14px;padding:10px"/>
+    <div id="pinErr" style="color:#c62828;font-size:12px;margin-bottom:10px;display:none">Wrong PIN. Try again.</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button onclick="checkPin()" style="background:#185FA5;color:#fff;border:none;padding:9px 24px;border-radius:7px;cursor:pointer;font-size:14px;font-family:inherit;font-weight:500">Login</button>
+      <button onclick="hidePinBox()" style="background:#f0f0f0;border:none;padding:9px 18px;border-radius:7px;cursor:pointer;font-size:14px;font-family:inherit">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <nav class="nav">
@@ -83,7 +102,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="metric"><div class="ml">Total Items</div><div class="mv info" id="m-total">—</div></div>
     <div class="metric"><div class="ml">Low Stock</div><div class="mv danger" id="m-low">—</div></div>
     <div class="metric"><div class="ml">Today IN</div><div class="mv success" id="m-in">—</div></div>
-    <div class="metric"><div class="ml">Today OUT (Categories)</div><div class="mv" id="m-out">—</div></div>
+    <div class="metric"><div class="ml">Today OUT (Items)</div><div class="mv" id="m-out">—</div></div>
   </div>
   <div id="dashAlerts"></div>
   <div class="card"><div class="card-title">Current Stock Overview</div><div class="tw" id="dashTable"><div class="loading">Loading...</div></div></div>
@@ -91,7 +110,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
 <!-- ITEMS -->
 <div id="page-items" class="page">
-  <div class="card">
+  <div class="card" id="addItemCard">
     <div class="card-title">Add New Item</div>
     <div class="frow c3">
       <div class="fg"><label>Item Name *</label><input id="i-name" placeholder="e.g. MCB 32A Single Pole"/></div>
@@ -114,7 +133,8 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
 <!-- STOCK IN -->
 <div id="page-stockin" class="page">
-  <div class="card">
+  <div id="siViewNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> — Login as Admin to record Stock IN</div>
+  <div class="card" id="siFormCard">
     <div class="card-title">Record Stock IN</div>
     <div id="si-noitems" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-bottom:14px">
       <div style="font-weight:600;color:#f57f17;margin-bottom:4px">No items in inventory yet!</div>
@@ -167,7 +187,8 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
 <!-- STOCK OUT -->
 <div id="page-stockout" class="page">
-  <div class="card">
+  <div id="soViewNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> — Login as Admin to record Stock OUT</div>
+  <div class="card" id="soFormCard">
     <div class="card-title">Record Stock OUT</div>
     <div id="so-noitems" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-bottom:14px">
       <div style="font-weight:600;color:#f57f17;margin-bottom:4px">No items in inventory yet!</div>
@@ -281,6 +302,16 @@ function stock(id) {
 
 function renderAll() {
   renderDash(); renderItems(); renderSI(); renderSO(); renderHistory(); renderAlerts(); fillSelects(); alertBadge();
+  const addCard = document.getElementById('addItemCard');
+  if(addCard) addCard.style.display = isAdmin ? 'block' : 'none';
+  const siCard = document.getElementById('siFormCard');
+  const siNotice = document.getElementById('siViewNotice');
+  if(siCard) siCard.style.display = isAdmin ? 'block' : 'none';
+  if(siNotice) siNotice.style.display = isAdmin ? 'none' : 'block';
+  const soCard = document.getElementById('soFormCard');
+  const soNotice = document.getElementById('soViewNotice');
+  if(soCard) soCard.style.display = isAdmin ? 'block' : 'none';
+  if(soNotice) soNotice.style.display = isAdmin ? 'none' : 'block';
 }
 
 function renderDash() {
@@ -318,10 +349,10 @@ function renderItems() {
   const q = (document.getElementById('itemSearch')?.value||'').toLowerCase();
   const list = items.filter(i => i.name.toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
   if (!list.length) { el.innerHTML='<div class="empty">No items found.</div>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Unit</th><th>Brand</th><th style="min-width:100px"></th></tr></thead><tbody>' +
+  el.innerHTML = '<table><thead><tr><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Unit</th><th>Brand</th>' + (isAdmin?'<th style="min-width:110px"></th>':'') + '</tr></thead><tbody>' +
     list.map(i => {
       const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
-      if(editingId === i.id) {
+      if(isAdmin && editingId === i.id) {
         return `<tr style="background:#f0f7ff">
           <td><input id="e-name" value="${i.name}" style="padding:5px 7px;font-size:12px"/></td>
           <td><select id="e-cat" style="padding:5px 7px;font-size:12px">${catOpts(i.category)}</select></td>
@@ -342,10 +373,7 @@ function renderItems() {
         <td>${i.min_stock}</td>
         <td>${i.unit}</td>
         <td>${i.brand||'—'}</td>
-        <td style="white-space:nowrap">
-          <button class="btn sm" onclick="startEdit('${i.id}')" style="margin-right:4px">Edit</button>
-          <button class="btn sm dng" onclick="delItem('${i.id}')">Del</button>
-        </td>
+        ${isAdmin ? `<td style="white-space:nowrap"><button class="btn sm" onclick="startEdit('${i.id}')" style="margin-right:4px">Edit</button><button class="btn sm dng" onclick="delItem('${i.id}')">Del</button></td>` : ''}
       </tr>`;
     }).join('') + '</tbody></table>';
 }
@@ -374,9 +402,9 @@ function renderSI() {
   const el = document.getElementById('siTable');
   const list = txns.filter(t=>t.type==='IN').slice(0,30);
   if (!list.length) { el.innerHTML='<div class="empty">No records yet.</div>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Supplier</th><th>Note</th></tr></thead><tbody>' +
+  el.innerHTML = '<table><thead><tr><th>Date</th><th>Item</th><th>Brand</th><th>Qty</th><th>Supplier</th><th>Note</th></tr></thead><tbody>' +
     list.map(t => { const it=items.find(i=>i.id===t.item_id);
-      return `<tr><td>${t.date}</td><td>${it?it.name:'?'}</td><td style="color:#2e7d32;font-weight:700">+${t.qty} ${it?it.unit:''}</td><td>${t.supplier||'—'}</td><td>${t.note||'—'}</td></tr>`;
+      return `<tr><td>${t.date}</td><td>${it?it.name:'?'}</td><td style="color:#666">${it?(it.brand||'—'):'—'}</td><td style="color:#2e7d32;font-weight:700">+${t.qty} ${it?it.unit:''}</td><td>${t.supplier||'—'}</td><td>${t.note||'—'}</td></tr>`;
     }).join('') + '</tbody></table>';
 }
 
@@ -384,9 +412,9 @@ function renderSO() {
   const el = document.getElementById('soTable');
   const list = txns.filter(t=>t.type==='OUT').slice(0,30);
   if (!list.length) { el.innerHTML='<div class="empty">No records yet.</div>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Customer</th><th>Note</th></tr></thead><tbody>' +
+  el.innerHTML = '<table><thead><tr><th>Date</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Note</th></tr></thead><tbody>' +
     list.map(t => { const it=items.find(i=>i.id===t.item_id);
-      return `<tr><td>${t.date}</td><td>${it?it.name:'?'}</td><td style="color:#e65100;font-weight:700">-${t.qty} ${it?it.unit:''}</td><td>${t.customer||'—'}</td><td>${t.note||'—'}</td></tr>`;
+      return `<tr><td>${t.date}</td><td>${it?it.name:'?'}</td><td style="color:#666">${it?(it.brand||'—'):'—'}</td><td style="color:#e65100;font-weight:700">-${t.qty} ${it?it.unit:''}</td><td>${t.customer||'—'}</td><td>${t.note||'—'}</td></tr>`;
     }).join('') + '</tbody></table>';
 }
 
@@ -541,6 +569,40 @@ function go(name,btn){
   document.getElementById('page-'+name).classList.add('active');
   btn.classList.add('active');
 }
+
+const ADMIN_PIN = '220593';
+let isAdmin = false;
+
+function showPinBox() {
+  document.getElementById('pinOverlay').style.display='flex';
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinErr').style.display='none';
+  setTimeout(()=>document.getElementById('pinInput').focus(),100);
+}
+function hidePinBox() {
+  document.getElementById('pinOverlay').style.display='none';
+}
+function checkPin() {
+  if(document.getElementById('pinInput').value === ADMIN_PIN) {
+    isAdmin = true;
+    hidePinBox();
+    document.getElementById('adminLoginBtn').style.display='none';
+    document.getElementById('adminLogoutBtn').style.display='inline-block';
+    renderAll();
+    toast('Admin mode ON — Edit & Delete enabled');
+  } else {
+    document.getElementById('pinErr').style.display='block';
+  }
+}
+function adminLogout() {
+  isAdmin = false;
+  editingId = null;
+  document.getElementById('adminLoginBtn').style.display='inline-block';
+  document.getElementById('adminLogoutBtn').style.display='none';
+  renderAll();
+  toast('Logged out from admin');
+}
+document.addEventListener('keydown', e => { if(e.key==='Enter' && document.getElementById('pinOverlay').style.display==='flex') checkPin(); });
 
 document.getElementById('si-date').value=today();
 document.getElementById('so-date').value=today();
