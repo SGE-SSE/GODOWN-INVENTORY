@@ -96,6 +96,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('stockout',this)">Stock OUT</button>
   <button onclick="go('history',this)">History</button>
   <button onclick="go('alerts',this)" id="alertsTab">Alerts</button>
+  <button onclick="go('wires',this)">🔌 Wires</button>
 </nav>
 
 <div class="con">
@@ -109,6 +110,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="metric"><div class="ml">Today OUT (Items)</div><div class="mv" id="m-out">—</div></div>
   </div>
   <div id="dashAlerts"></div>
+  <div class="card" id="wireCard" style="display:none">
+    <div class="card-title">🔌 Wire Stock Overview <span style="font-size:12px;color:#888;font-weight:400" id="wireUnit"></span></div>
+    <div class="tw" id="dashWireTable"><div class="loading">Loading...</div></div>
+  </div>
   <div class="card"><div class="card-title">Current Stock Overview</div><div class="tw" id="dashTable"><div class="loading">Loading...</div></div></div>
 </div>
 
@@ -256,6 +261,15 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
 </div>
 
+
+<!-- WIRE DASHBOARD -->
+<div id="page-wires" class="page">
+  <div class="card">
+    <div class="card-title">Wire Inventory Dashboard <span style="font-size:12px;color:#888;font-weight:400" id="wireUnit"></span></div>
+    <p style="font-size:12px;color:#666;margin-bottom:14px">Auto-built from your wire items. Colors detected from item names (RED, YELLOW, GREEN, BLUE, BLACK, WHITE, GREY).</p>
+    <div class="tw" id="wireTable"><div class="loading">Loading...</div></div>
+  </div>
+</div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -321,8 +335,81 @@ function stock(id) {
   return Math.max(0, s);
 }
 
+
+function renderWires() {
+  const el = document.getElementById('wireTable');
+  const COLORS = ['RED','YELLOW','GREEN','BLUE','BLACK','WHITE','GREY'];
+  const COLOR_STYLES = {
+    RED:    {bg:'#e53935',text:'#fff'},
+    YELLOW: {bg:'#FDD835',text:'#333'},
+    GREEN:  {bg:'#7CB342',text:'#fff'},
+    BLUE:   {bg:'#1E88E5',text:'#fff'},
+    BLACK:  {bg:'#212121',text:'#FF8F00'},
+    WHITE:  {bg:'#f5f5f5',text:'#333'},
+    GREY:   {bg:'#9E9E9E',text:'#fff'}
+  };
+
+  // Filter wire items only
+  const wireItems = items.filter(i => (i.category||'').toLowerCase().includes('wire') || (i.name||'').toLowerCase().includes('wire') || (i.name||'').toLowerCase().includes('sqmm') || (i.name||'').toLowerCase().includes('cable'));
+
+  if(!wireItems.length) {
+    el.innerHTML = '<div class="empty">No wire items found. Items with "WIRE", "SQMM" or "CABLE" in name will appear here.</div>';
+    return;
+  }
+
+  // Detect which colors exist in item names
+  const usedColors = COLORS.filter(c => wireItems.some(i => i.name.toUpperCase().includes(c)));
+
+  // Get base name (remove color suffix) and group
+  const rows = {};
+  wireItems.forEach(i => {
+    const nameUp = i.name.toUpperCase();
+    let color = usedColors.find(c => nameUp.endsWith(' '+c) || nameUp.includes(' '+c+' ') || nameUp.includes('-'+c));
+    let baseName = i.name;
+    if(color) {
+      baseName = i.name.replace(new RegExp('[\s\-]?' + color + '[\s\-]?$','i'), '').replace(new RegExp('[\s\-]' + color + '[\s\-]','i'), ' ').trim();
+    } else {
+      color = 'OTHER';
+    }
+    if(!rows[baseName]) rows[baseName] = {};
+    rows[baseName][color] = stock(i.id);
+  });
+
+  const finalColors = usedColors.length ? usedColors : ['OTHER'];
+  const unit = wireItems[0]?.unit || '';
+  document.getElementById('wireUnit').textContent = unit ? '(Units: ' + unit + ')' : '';
+
+  let tableHtml = '<table style="border-collapse:collapse;width:100%;font-size:13px">';
+  // Header
+  tableHtml += '<thead><tr><th style="background:#f8f9fa;padding:9px 12px;text-align:left;border:1px solid #ddd;min-width:200px">Wire Type</th>';
+  finalColors.forEach(c => {
+    const st = COLOR_STYLES[c] || {bg:'#888',text:'#fff'};
+    tableHtml += `<th style="background:${st.bg};color:${st.text};padding:9px 14px;text-align:center;border:1px solid #ddd;min-width:80px;font-weight:700">${c}</th>`;
+  });
+  tableHtml += '</tr></thead><tbody>';
+
+  // Rows
+  Object.keys(rows).sort().forEach((base,idx) => {
+    tableHtml += `<tr style="background:${idx%2===0?'#fff':'#fafafa'}">`;
+    tableHtml += `<td style="padding:9px 12px;border:1px solid #e0e0e0;font-weight:500">${base}</td>`;
+    finalColors.forEach(c => {
+      const st = COLOR_STYLES[c] || {bg:'#888',text:'#fff'};
+      const qty = rows[base][c];
+      if(qty !== undefined) {
+        tableHtml += `<td style="padding:9px 14px;text-align:center;border:1px solid #e0e0e0;background:${st.bg}22;font-weight:700;color:${qty===0?'#c62828':'#1a1a1a'}">${qty}</td>`;
+      } else {
+        tableHtml += `<td style="padding:9px 14px;text-align:center;border:1px solid #e0e0e0;color:#ccc">—</td>`;
+      }
+    });
+    tableHtml += '</tr>';
+  });
+
+  tableHtml += '</tbody></table>';
+  el.innerHTML = tableHtml;
+}
+
 function renderAll() {
-  renderDash(); renderItems(); renderSI(); renderSO(); renderHistory(); renderAlerts(); fillSelects(); alertBadge();
+  renderDash(); renderItems(); renderSI(); renderSO(); renderHistory(); renderAlerts(); renderWires(); fillSelects(); alertBadge();
   const addCard = document.getElementById('addItemCard');
   if(addCard) addCard.style.display = isAdmin ? 'block' : 'none';
   const siCard = document.getElementById('siFormCard');
@@ -333,6 +420,11 @@ function renderAll() {
   const soNotice = document.getElementById('soViewNotice');
   if(soCard) soCard.style.display = isAdmin ? 'block' : 'none';
   if(soNotice) soNotice.style.display = isAdmin ? 'none' : 'block';
+}
+
+function isWireItem(i) {
+  const n = (i.name||'').toUpperCase();
+  return n.includes('WIRE') || n.includes('SQMM') || n.includes('CABLE');
 }
 
 function renderDash() {
@@ -349,10 +441,63 @@ function renderDash() {
   da.innerHTML = low.length ? '<div class="card" style="border-left:4px solid #c62828"><div class="card-title" style="color:#c62828">⚠ Low Stock ('+low.length+')</div>' +
     low.map(i=>`<div class="arow"><div><div class="aname">${i.name}</div><div class="adetail">${i.category} · ${i.brand||'—'}</div></div><div class="apill">Stock: ${stock(i.id)} | Min: ${i.min_stock}</div></div>`).join('')+'</div>' : '';
 
+  // ── Wire color grid in dashboard ──
+  const COLORS = ['RED','YELLOW','GREEN','BLUE','BLACK','WHITE','GREY'];
+  const COLOR_STYLES = {
+    RED:    {bg:'#e53935',text:'#fff'},
+    YELLOW: {bg:'#FDD835',text:'#333'},
+    GREEN:  {bg:'#7CB342',text:'#fff'},
+    BLUE:   {bg:'#1E88E5',text:'#fff'},
+    BLACK:  {bg:'#212121',text:'#FF8F00'},
+    WHITE:  {bg:'#f5f5f5',text:'#333'},
+    GREY:   {bg:'#9E9E9E',text:'#fff'}
+  };
+  const wireItems = items.filter(isWireItem);
+  const wireCard = document.getElementById('wireCard');
+  const wireEl = document.getElementById('dashWireTable');
+  if(wireItems.length > 0) {
+    wireCard.style.display = 'block';
+    const usedColors = COLORS.filter(c => wireItems.some(i => i.name.toUpperCase().includes(c)));
+    const rows = {};
+    wireItems.forEach(i => {
+      const nameUp = i.name.toUpperCase();
+      let color = usedColors.find(c => nameUp.endsWith(' '+c) || nameUp.includes(' '+c+' ') || nameUp.includes('-'+c));
+      let baseName = i.name;
+      if(color) baseName = i.name.replace(new RegExp('[\s\-]?'+color+'[\s\-]?$','i'),'').replace(new RegExp('[\s\-]'+color+'[\s\-]','i'),' ').trim();
+      else color='OTHER';
+      if(!rows[baseName]) rows[baseName]={};
+      rows[baseName][color]=stock(i.id);
+    });
+    const finalColors = usedColors.length ? usedColors : ['OTHER'];
+    const unit = wireItems[0]?.unit||'';
+    document.getElementById('wireUnit').textContent = unit?'(Units: '+unit+')':'';
+    let t = '<table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>';
+    t += '<th style="background:#f8f9fa;padding:9px 12px;text-align:left;border:1px solid #ddd;min-width:180px">Wire Type</th>';
+    finalColors.forEach(c=>{const st=COLOR_STYLES[c]||{bg:'#888',text:'#fff'};t+=`<th style="background:${st.bg};color:${st.text};padding:9px 14px;text-align:center;border:1px solid #ddd;min-width:70px;font-weight:700">${c}</th>`;});
+    t+='</tr></thead><tbody>';
+    Object.keys(rows).sort().forEach((base,idx)=>{
+      t+=`<tr style="background:${idx%2===0?'#fff':'#fafafa'}"><td style="padding:9px 12px;border:1px solid #e0e0e0;font-weight:500">${base}</td>`;
+      finalColors.forEach(c=>{
+        const st=COLOR_STYLES[c]||{bg:'#888',text:'#fff'};
+        const qty=rows[base][c];
+        if(qty!==undefined) t+=`<td style="padding:9px 14px;text-align:center;border:1px solid #e0e0e0;background:${st.bg}22;font-weight:700;color:${qty===0?'#c62828':'#1a1a1a'}">${qty}</td>`;
+        else t+=`<td style="padding:9px 14px;text-align:center;border:1px solid #e0e0e0;color:#ccc">—</td>`;
+      });
+      t+='</tr>';
+    });
+    t+='</tbody></table>';
+    wireEl.innerHTML=t;
+  } else {
+    wireCard.style.display='none';
+  }
+
+  // ── Non-wire items below ──
   const el = document.getElementById('dashTable');
+  const nonWire = items.filter(i => !isWireItem(i));
   if (!items.length) { el.innerHTML='<div class="empty">No items yet. Add from Items tab.</div>'; return; }
+  if (!nonWire.length) { el.innerHTML='<div class="empty">All items are wires — shown above.</div>'; return; }
   el.innerHTML = '<table><thead><tr><th>Item</th><th>Category</th><th>Brand</th><th>Stock</th><th>Unit</th><th>Min</th><th>Status</th></tr></thead><tbody>' +
-    items.map(i => { const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
+    nonWire.map(i => { const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
       return `<tr><td style="font-weight:500">${i.name}</td><td style="color:#666">${i.category}</td><td style="color:#666">${i.brand||'—'}</td><td style="font-weight:700;${low?'color:#c62828':''}">${s}</td><td>${i.unit}</td><td>${i.min_stock}</td><td><span class="badge ${low?'low':'ok'}">${low?'Low':'OK'}</span></td></tr>`;
     }).join('') + '</tbody></table>';
 }
