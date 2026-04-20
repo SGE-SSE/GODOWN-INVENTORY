@@ -57,6 +57,21 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 .toast.ok{background:#2e7d32}.toast.err{background:#c62828}
 .ar{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .tw{overflow-x:auto}
+.search-wrap{position:relative}
+.search-input{width:100%;padding:9px 11px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;background:#fff;color:#1a1a1a}
+.search-input:focus{outline:none;border-color:#185FA5}
+.search-drop{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #185FA5;border-radius:0 0 7px 7px;z-index:999;max-height:280px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:none}
+.search-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px}
+.search-item:last-child{border-bottom:none}
+.search-item:hover,.search-item.active{background:#e8f0fb}
+.search-item .si-name{font-weight:600;color:#1a1a1a}
+.search-item .si-brand{font-size:11px;color:#fff;background:#185FA5;padding:2px 7px;border-radius:10px;margin-left:6px;font-weight:500}
+.search-item .si-meta{font-size:11px;color:#888;margin-top:2px}
+.search-selected{background:#e8f0fb;border:1px solid #185FA5;border-radius:7px;padding:8px 12px;font-size:13px;display:none;align-items:center;justify-content:space-between}
+.search-selected .ss-name{font-weight:600;color:#185FA5}
+.search-selected .ss-brand{font-size:11px;background:#185FA5;color:#fff;padding:2px 7px;border-radius:10px;margin-left:6px}
+.search-selected .ss-clear{cursor:pointer;color:#c62828;font-size:16px;font-weight:700;padding:0 4px}
+.no-results{padding:12px;color:#999;font-size:13px;text-align:center}
 </style>
 </head>
 <body>
@@ -161,8 +176,16 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div id="si-form">
       <div class="frow c2">
         <div class="fg">
-          <label>Item * <span id="si-addlink" onclick="showQuickAdd('si')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
-          <select id="si-item"><option value="">-- Select Item --</option></select>
+          <label>Item * <span onclick="showQuickAdd('si')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
+          <input type="hidden" id="si-item" value=""/>
+          <div class="search-wrap">
+            <input type="text" class="search-input" id="si-search" placeholder="Type item name to search..." autocomplete="off" oninput="searchItems('si')" onfocus="searchItems('si')" onblur="setTimeout(()=>closeSearch('si'),200)"/>
+            <div class="search-drop" id="si-drop"></div>
+          </div>
+          <div class="search-selected" id="si-selected">
+            <div><span class="ss-name" id="si-sel-name"></span><span class="ss-brand" id="si-sel-brand"></span><div style="font-size:11px;color:#666;margin-top:2px" id="si-sel-meta"></div></div>
+            <span class="ss-clear" onclick="clearSearch('si')">✕</span>
+          </div>
         </div>
         <div class="fg"><label>Quantity *</label><input type="number" id="si-qty" placeholder="Quantity" min="1"/></div>
       </div>
@@ -205,8 +228,16 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div id="so-form">
       <div class="frow c2">
         <div class="fg">
-          <label>Item * <span id="so-addlink" onclick="showQuickAdd('so')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
-          <select id="so-item"><option value="">-- Select Item --</option></select>
+          <label>Item * <span onclick="showQuickAdd('so')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
+          <input type="hidden" id="so-item" value=""/>
+          <div class="search-wrap">
+            <input type="text" class="search-input" id="so-search" placeholder="Type item name to search..." autocomplete="off" oninput="searchItems('so')" onfocus="searchItems('so')" onblur="setTimeout(()=>closeSearch('so'),200)"/>
+            <div class="search-drop" id="so-drop"></div>
+          </div>
+          <div class="search-selected" id="so-selected">
+            <div><span class="ss-name" id="so-sel-name"></span><span class="ss-brand" id="so-sel-brand"></span><div style="font-size:11px;color:#666;margin-top:2px" id="so-sel-meta"></div></div>
+            <span class="ss-clear" onclick="clearSearch('so')">✕</span>
+          </div>
         </div>
         <div class="fg"><label>Quantity *</label><input type="number" id="so-qty" placeholder="Quantity" min="1"/></div>
       </div>
@@ -242,9 +273,19 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div class="card">
     <div class="card-title">Transaction History</div>
     <div class="sbar">
-      <select id="h-item" onchange="renderHistory()"><option value="">All Items</option></select>
-      <select id="h-type" onchange="renderHistory()"><option value="">All Types</option><option value="IN">IN</option><option value="OUT">OUT</option></select>
-      <input type="date" id="h-date" onchange="renderHistory()" style="max-width:160px;flex:none"/>
+      <div style="flex:1;min-width:180px">
+        <input type="hidden" id="h-item" value=""/>
+        <div class="search-wrap">
+          <input type="text" class="search-input" id="h-search" placeholder="Search item..." autocomplete="off" oninput="searchItems('hi')" onfocus="searchItems('hi')" onblur="setTimeout(()=>closeSearch('hi'),200)" style="margin-bottom:0"/>
+          <div class="search-drop" id="hi-drop"></div>
+        </div>
+        <div class="search-selected" id="hi-selected">
+          <div><span class="ss-name" id="hi-sel-name"></span><span class="ss-brand" id="hi-sel-brand"></span></div>
+          <span class="ss-clear" onclick="clearSearch('hi')">✕</span>
+        </div>
+      </div>
+      <select id="h-type" onchange="renderHistory()" style="flex:0 0 100px;margin-bottom:0"><option value="">All Types</option><option value="IN">IN</option><option value="OUT">OUT</option></select>
+      <input type="date" id="h-date" onchange="renderHistory()" style="max-width:150px;flex:none;margin-bottom:0"/>
       <button class="btn sm" onclick="clearHF()">Clear</button>
     </div>
     <div class="tw" id="histTable"><div class="loading">Loading...</div></div>
@@ -631,16 +672,8 @@ function fillSelects() {
   if(soNone) soNone.style.display = noItems ? 'block' : 'none';
   if(soForm) soForm.style.display = noItems ? 'none' : 'block';
 
-  ['si-item','so-item'].forEach(id=>{
-    const el=document.getElementById(id); if(!el)return;
-    const v=el.value; el.innerHTML='<option value="">-- Select Item --</option>';
-    items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=(i.brand?'['+i.brand+'] ':'')+i.name+' ('+i.unit+')';el.appendChild(o);});
-    if(v)el.value=v;
-  });
-  const h=document.getElementById('h-item'); if(!h)return;
-  const v=h.value; h.innerHTML='<option value="">All Items</option>';
-  items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=(i.brand?'['+i.brand+'] ':'')+i.name;h.appendChild(o);});
-  if(v)h.value=v;
+  // si-item and so-item are now hidden inputs - no dropdown to fill
+  // h-item is now a hidden input - handled by smart search
 }
 
 function showQuickAdd(prefix) {
@@ -708,7 +741,7 @@ async function addStockIn() {
   try{
     await api('POST','transactions',{item_id:itemId,type:'IN',qty,supplier:document.getElementById('si-sup').value.trim(),date:document.getElementById('si-date').value||today(),note:document.getElementById('si-note').value.trim()});
     toast('Stock IN saved!');
-    document.getElementById('si-item').value='';
+    clearSearch('si');
     document.getElementById('si-qty').value='';
     document.getElementById('si-sup').value='';
     document.getElementById('si-note').value='';
@@ -725,7 +758,7 @@ async function addStockOut() {
   try{
     await api('POST','transactions',{item_id:itemId,type:'OUT',qty,customer:document.getElementById('so-cust').value.trim(),date:document.getElementById('so-date').value||today(),note:document.getElementById('so-note').value.trim()});
     toast('Stock OUT saved!');
-    document.getElementById('so-item').value='';
+    clearSearch('so');
     document.getElementById('so-qty').value='';
     document.getElementById('so-cust').value='';
     document.getElementById('so-note').value='';
@@ -733,7 +766,7 @@ async function addStockOut() {
   }catch(e){toast('Error: '+e.message,'err');}
 }
 
-function clearHF(){document.getElementById('h-item').value='';document.getElementById('h-type').value='';document.getElementById('h-date').value='';renderHistory();}
+function clearHF(){clearSearch('hi');document.getElementById('h-type').value='';document.getElementById('h-date').value='';renderHistory();}
 
 function go(name,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -775,6 +808,87 @@ function adminLogout() {
   toast('Logged out from admin');
 }
 document.addEventListener('keydown', e => { if(e.key==='Enter' && document.getElementById('pinOverlay').style.display==='flex') checkPin(); });
+
+
+function searchItems(prefix) {
+  const searchId2 = prefix==='hi' ? 'h-search' : prefix+'-search';
+  const q = document.getElementById(searchId2).value.trim().toUpperCase();
+  const dropId = prefix==='hi' ? 'hi-drop' : prefix+'-drop';
+  const drop = document.getElementById(dropId);
+  let filtered = items;
+  if(q.length > 0) {
+    filtered = items.filter(i =>
+      i.name.toUpperCase().includes(q) ||
+      (i.brand||'').toUpperCase().includes(q) ||
+      (i.category||'').toUpperCase().includes(q)
+    );
+  }
+  if(filtered.length === 0) {
+    drop.innerHTML = '<div class="no-results">No items found</div>';
+    drop.style.display = 'block';
+    return;
+  }
+  const grouped = {};
+  filtered.forEach(i => {
+    if(!grouped[i.name]) grouped[i.name] = [];
+    grouped[i.name].push(i);
+  });
+  const rows = [];
+  Object.keys(grouped).sort().forEach(name => {
+    grouped[name].forEach(i => {
+      const s = stock(i.id);
+      const low = s <= i.min_stock && i.min_stock > 0;
+      const div = document.createElement('div');
+      div.className = 'search-item';
+      div.innerHTML = '<div><span class="si-name">' + i.name + '</span>'
+        + (i.brand ? ' <span class="si-brand">' + i.brand + '</span>' : '')
+        + '</div><div class="si-meta">Stock: <strong style="color:' + (low?'#c62828':'#2e7d32') + '">' + s + '</strong> ' + i.unit
+        + ' &nbsp;|&nbsp; ' + (i.category||'') + (low?' <span style="color:#c62828">⚠ Low</span>':'') + '</div>';
+      div.addEventListener('mousedown', function() { selectItem(prefix, i.id); });
+      rows.push(div);
+    });
+  });
+  drop.innerHTML = '';
+  rows.forEach(r => drop.appendChild(r));
+  drop.style.display = 'block';
+}
+
+function selectItem(prefix, itemId) {
+  const item = items.find(i => i.id === itemId);
+  if(!item) return;
+  const hiddenId = prefix==='hi' ? 'h-item' : prefix+'-item';
+  document.getElementById(hiddenId).value = itemId;
+  const searchId = prefix==='hi' ? 'h-search' : prefix+'-search';
+  document.getElementById(searchId).style.display = 'none';
+  const selId = prefix==='hi' ? 'hi-selected' : prefix+'-selected';
+  const sel = document.getElementById(selId);
+  sel.style.display = 'flex';
+  document.getElementById(prefix+'-sel-name').textContent = item.name;
+  const brandEl = document.getElementById(prefix+'-sel-brand');
+  if(brandEl){ brandEl.textContent = item.brand || ''; brandEl.style.display = item.brand ? 'inline' : 'none'; }
+  const metaEl = document.getElementById(prefix+'-sel-meta');
+  if(metaEl){ const s = stock(item.id); metaEl.textContent = 'Stock: ' + s + ' ' + item.unit + '  |  ' + (item.category||''); }
+  closeSearch(prefix);
+  if(prefix==='hi') renderHistory();
+}
+
+function clearSearch(prefix) {
+  const hiddenId = prefix==='hi' ? 'h-item' : prefix+'-item';
+  const searchId = prefix==='hi' ? 'h-search' : prefix+'-search';
+  const selectedId = prefix==='hi' ? 'hi-selected' : prefix+'-selected';
+  document.getElementById(hiddenId).value = '';
+  document.getElementById(searchId).value = '';
+  document.getElementById(searchId).style.display = 'block';
+  document.getElementById(selectedId).style.display = 'none';
+  closeSearch(prefix);
+  if(prefix==='hi') renderHistory();
+}
+
+function closeSearch(prefix) {
+  const dropId = prefix==='hi' ? 'hi-drop' : prefix+'-drop';
+  const drop = document.getElementById(dropId);
+  if(drop) drop.style.display = 'none';
+}
 
 document.getElementById('si-date').value=today();
 document.getElementById('so-date').value=today();
