@@ -439,15 +439,73 @@ function renderDash() {
     wireCard.style.display='none';
   }
 
-  // ── Non-wire items below ──
+  // ── Non-wire: Each Brand+Category = One Separate Table ──
   const el = document.getElementById('dashTable');
   const nonWire = items.filter(i => !isWireItem(i));
   if (!items.length) { el.innerHTML='<div class="empty">No items yet. Add from Items tab.</div>'; return; }
-  if (!nonWire.length) { el.innerHTML='<div class="empty">All items are wires — shown above.</div>'; return; }
-  el.innerHTML = '<table><thead><tr><th>Item</th><th>Category</th><th>Brand</th><th>Stock</th><th>Unit</th><th>Min</th><th>Status</th></tr></thead><tbody>' +
-    nonWire.map(i => { const s=stock(i.id), low=s<=i.min_stock&&i.min_stock>0;
-      return `<tr><td style="font-weight:500">${i.name}</td><td style="color:#666">${i.category}</td><td style="color:#666">${i.brand||'—'}</td><td style="font-weight:700;${low?'color:#c62828':''}">${s}</td><td>${i.unit}</td><td>${i.min_stock}</td><td><span class="badge ${low?'low':'ok'}">${low?'Low':'OK'}</span></td></tr>`;
-    }).join('') + '</tbody></table>';
+  if (!nonWire.length) { el.innerHTML='<div class="empty">All items are wires shown above.</div>'; return; }
+
+  // Build flat list of unique Brand+Category combinations
+  const combos = {};
+  nonWire.forEach(i => {
+    const brand = (i.brand || 'Unknown Brand').trim();
+    const cat = (i.category || 'Other').trim();
+    const key = brand + '||' + cat;
+    if(!combos[key]) combos[key] = {brand, cat, items:[]};
+    combos[key].items.push(i);
+  });
+
+  // Sort by Brand first, then Category
+  const sortedKeys = Object.keys(combos).sort((a,b) => {
+    const [ab, ac] = a.split('||');
+    const [bb, bc] = b.split('||');
+    return ab.localeCompare(bb) || ac.localeCompare(bc);
+  });
+
+  let nwHtml = '';
+  let lastBrand = '';
+
+  sortedKeys.forEach(key => {
+    const {brand, cat, items: bItems} = combos[key];
+    const sorted = bItems.sort((a,b) => a.name.localeCompare(b.name));
+    const lowCount = sorted.filter(i => stock(i.id) <= i.min_stock && i.min_stock > 0).length;
+
+    // Show brand divider when brand changes
+    if(brand !== lastBrand) {
+      nwHtml += '<div style="font-size:16px;font-weight:700;color:#185FA5;margin:24px 0 8px;padding:10px 14px;background:#e8f0fb;border-radius:8px;border-left:5px solid #185FA5">🏷 ' + brand + '</div>';
+      lastBrand = brand;
+    }
+
+    // Category table header
+    nwHtml += '<div style="font-size:13px;font-weight:600;color:#5d4037;margin:10px 0 4px;padding:6px 12px;background:#fbe9e7;border-radius:5px;border-left:3px solid #ff7043;display:flex;justify-content:space-between;align-items:center">'
+      + '<span>📂 ' + cat + '</span>'
+      + '<span style="font-size:11px;font-weight:500;color:#888">' + sorted.length + ' items' + (lowCount>0?' &nbsp;·&nbsp; <span style="color:#c62828">'+lowCount+' low</span>':'') + '</span>'
+      + '</div>';
+
+    // Table
+    nwHtml += '<table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:14px">'
+      + '<thead><tr>'
+      + '<th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:left">Item</th>'
+      + '<th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center;min-width:70px">Stock</th>'
+      + '<th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center">Unit</th>'
+      + '<th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center">Min</th>'
+      + '<th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center">Status</th>'
+      + '</tr></thead><tbody>';
+
+    sorted.forEach((i, idx) => {
+      const s = stock(i.id), low = s <= i.min_stock && i.min_stock > 0;
+      nwHtml += '<tr style="background:' + (idx%2===0?'#fff':'#fafafa') + '">'
+        + '<td style="padding:8px 10px;border:1px solid #e0e0e0;font-weight:500">' + i.name + '</td>'
+        + '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center;font-weight:700;' + (low?'color:#c62828;background:#ffebee':'') + '">' + s + '</td>'
+        + '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center;color:#666">' + i.unit + '</td>'
+        + '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center;color:#666">' + i.min_stock + '</td>'
+        + '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center"><span class="badge ' + (low?'low':'ok') + '">' + (low?'Low':'OK') + '</span></td>'
+        + '</tr>';
+    });
+    nwHtml += '</tbody></table>';
+  });
+
+  el.innerHTML = nwHtml;
 }
 
 const CATS = ['Wires & Cables','Switches & Sockets','MCB & Distribution','Lights & Fixtures','Conduits & Fittings','Fans & Motors','Tools & Equipment','Other'];
@@ -576,12 +634,12 @@ function fillSelects() {
   ['si-item','so-item'].forEach(id=>{
     const el=document.getElementById(id); if(!el)return;
     const v=el.value; el.innerHTML='<option value="">-- Select Item --</option>';
-    items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name+' ('+i.unit+')';el.appendChild(o);});
+    items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=(i.brand?'['+i.brand+'] ':'')+i.name+' ('+i.unit+')';el.appendChild(o);});
     if(v)el.value=v;
   });
   const h=document.getElementById('h-item'); if(!h)return;
   const v=h.value; h.innerHTML='<option value="">All Items</option>';
-  items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;h.appendChild(o);});
+  items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=(i.brand?'['+i.brand+'] ':'')+i.name;h.appendChild(o);});
   if(v)h.value=v;
 }
 
