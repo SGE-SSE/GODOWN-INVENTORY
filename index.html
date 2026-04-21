@@ -159,59 +159,37 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div id="siViewNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> — Login as Admin to record Stock IN</div>
   <div class="card" id="siFormCard">
     <div class="card-title">Record Stock IN</div>
-    <div id="si-noitems" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-bottom:14px">
-      <div style="font-weight:600;color:#f57f17;margin-bottom:4px">No items in inventory yet!</div>
-      <div style="font-size:12px;color:#666;margin-bottom:10px">Add your first item below to get started</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div class="fg"><label>Item Name *</label><input id="qi-name" placeholder="e.g. MCB 32A"/></div>
-        <div class="fg"><label>Category</label><select id="qi-cat"><option>Wires & Cables</option><option>Switches & Sockets</option><option>MCB & Distribution</option><option>Lights & Fixtures</option><option>Conduits & Fittings</option><option>Fans & Motors</option><option>Tools & Equipment</option><option>Other</option></select></div>
+    <!-- Step 1: Brand -->
+    <div class="frow c2" style="margin-bottom:10px">
+      <div class="fg">
+        <label>Step 1 — Select Brand</label>
+        <select id="si-brand-sel" onchange="filterItemsByBrand('si')">
+          <option value="">-- All Brands --</option>
+        </select>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-        <div class="fg"><label>Unit</label><select id="qi-unit"><option>DRUM</option><option>BAG</option><option>PKT</option><option>NOS</option><option>BUN</option><option>Meters</option><option>Rolls</option><option>Boxes</option><option>Sets</option><option>Kg</option><option>Coils</option></select></div>
-        <div class="fg"><label>Min Stock</label><input type="number" id="qi-min" value="10" min="0"/></div>
-        <div class="fg"><label>Brand</label><input id="qi-brand" placeholder="e.g. Havells"/></div>
+      <div class="fg">
+        <label>Step 2 — Select Item</label>
+        <select id="si-item-sel" onchange="onItemSelect('si')">
+          <option value="">-- Select Item --</option>
+        </select>
       </div>
-      <button class="btn primary" onclick="quickAddItem('si')">+ Add Item to Inventory</button>
     </div>
-    <div id="si-form">
-      <div class="frow c2">
-        <div class="fg">
-          <label>Item * <span onclick="showQuickAdd('si')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
-          <input type="hidden" id="si-item" value=""/>
-          <div class="search-wrap">
-            <input type="text" class="search-input" id="si-search" placeholder="Type item name to search..." autocomplete="off" oninput="searchItems('si')" onfocus="searchItems('si')" onblur="setTimeout(()=>closeSearch('si'),200)"/>
-            <div class="search-drop" id="si-drop"></div>
-          </div>
-          <div class="search-selected" id="si-selected">
-            <div><span class="ss-name" id="si-sel-name"></span><span class="ss-brand" id="si-sel-brand"></span><div style="font-size:11px;color:#666;margin-top:2px" id="si-sel-meta"></div></div>
-            <span class="ss-clear" onclick="clearSearch('si')">✕</span>
-          </div>
-        </div>
-        <div class="fg"><label>Quantity *</label><input type="number" id="si-qty" placeholder="Quantity" min="1"/></div>
-      </div>
-      <div id="si-quickadd" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:600;color:#185FA5;margin-bottom:8px">Quick Add New Item</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="fg"><label>Item Name *</label><input id="siq-name" placeholder="Item name"/></div>
-          <div class="fg"><label>Category</label><select id="siq-cat"><option>Wires & Cables</option><option>Switches & Sockets</option><option>MCB & Distribution</option><option>Lights & Fixtures</option><option>Conduits & Fittings</option><option>Fans & Motors</option><option>Tools & Equipment</option><option>Other</option></select></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="fg"><label>Unit</label><select id="siq-unit"><option>DRUM</option><option>BAG</option><option>PKT</option><option>NOS</option><option>BUN</option><option>Meters</option><option>Rolls</option><option>Boxes</option><option>Sets</option><option>Kg</option><option>Coils</option></select></div>
-          <div class="fg"><label>Min Stock</label><input type="number" id="siq-min" value="10" min="0"/></div>
-          <div class="fg"><label>Brand</label><input id="siq-brand" placeholder="e.g. Havells"/></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn primary sm" onclick="inlineAddItem('si')">+ Save Item</button>
-          <button class="btn sm" onclick="hideQuickAdd('si')">Cancel</button>
-        </div>
-      </div>
-      <div class="frow c2">
-        <div class="fg"><label>Supplier Name</label><input id="si-sup" placeholder="Supplier / Vendor name"/></div>
-        <div class="fg"><label>Date</label><input type="date" id="si-date"/></div>
-      </div>
-      <div class="frow"><div class="fg"><label>Note</label><input id="si-note" placeholder="Invoice no. or remarks"/></div></div>
-      <div class="ar"><button class="btn primary" onclick="addStockIn()">+ Add Stock IN</button></div>
+    <!-- Selected item info bar -->
+    <div id="si-item-info" style="display:none;background:#e8f0fb;border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:13px;display:none;align-items:center;gap:16px;flex-wrap:wrap">
+      <div><span style="color:#555;font-size:11px">BRAND</span><div style="font-weight:700;color:#185FA5" id="si-info-brand"></div></div>
+      <div><span style="color:#555;font-size:11px">ITEM</span><div style="font-weight:700" id="si-info-name"></div></div>
+      <div><span style="color:#555;font-size:11px">CURRENT STOCK</span><div style="font-weight:700;color:#2e7d32" id="si-info-stock"></div></div>
+      <div><span style="color:#555;font-size:11px">UNIT</span><div style="font-weight:700" id="si-info-unit"></div></div>
     </div>
+    <input type="hidden" id="si-item" value=""/>
+    <!-- Entry fields -->
+    <div class="frow c3">
+      <div class="fg"><label>Quantity *</label><input type="number" id="si-qty" placeholder="Enter qty" min="1"/></div>
+      <div class="fg"><label>Supplier Name</label><input id="si-sup" placeholder="Supplier / Vendor"/></div>
+      <div class="fg"><label>Date</label><input type="date" id="si-date"/></div>
+    </div>
+    <div class="frow"><div class="fg"><label>Note</label><input id="si-note" placeholder="Invoice no. or remarks"/></div></div>
+    <div class="ar"><button class="btn primary" onclick="addStockIn()">+ Add Stock IN</button></div>
   </div>
   <div class="card"><div class="card-title">Recent Stock IN</div><div class="tw" id="siTable"><div class="loading">Loading...</div></div></div>
 </div>
@@ -221,49 +199,37 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div id="soViewNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> — Login as Admin to record Stock OUT</div>
   <div class="card" id="soFormCard">
     <div class="card-title">Record Stock OUT</div>
-    <div id="so-noitems" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-bottom:14px">
-      <div style="font-weight:600;color:#f57f17;margin-bottom:4px">No items in inventory yet!</div>
-      <div style="font-size:12px;color:#666">Please go to the <strong>Items tab</strong> or <strong>Stock IN tab</strong> to add items first.</div>
+    <!-- Step 1: Brand -->
+    <div class="frow c2" style="margin-bottom:10px">
+      <div class="fg">
+        <label>Step 1 — Select Brand</label>
+        <select id="so-brand-sel" onchange="filterItemsByBrand('so')">
+          <option value="">-- All Brands --</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Step 2 — Select Item</label>
+        <select id="so-item-sel" onchange="onItemSelect('so')">
+          <option value="">-- Select Item --</option>
+        </select>
+      </div>
     </div>
-    <div id="so-form">
-      <div class="frow c2">
-        <div class="fg">
-          <label>Item * <span onclick="showQuickAdd('so')" style="color:#185FA5;cursor:pointer;font-size:11px;font-weight:400;float:right">+ Add New Item</span></label>
-          <input type="hidden" id="so-item" value=""/>
-          <div class="search-wrap">
-            <input type="text" class="search-input" id="so-search" placeholder="Type item name to search..." autocomplete="off" oninput="searchItems('so')" onfocus="searchItems('so')" onblur="setTimeout(()=>closeSearch('so'),200)"/>
-            <div class="search-drop" id="so-drop"></div>
-          </div>
-          <div class="search-selected" id="so-selected">
-            <div><span class="ss-name" id="so-sel-name"></span><span class="ss-brand" id="so-sel-brand"></span><div style="font-size:11px;color:#666;margin-top:2px" id="so-sel-meta"></div></div>
-            <span class="ss-clear" onclick="clearSearch('so')">✕</span>
-          </div>
-        </div>
-        <div class="fg"><label>Quantity *</label><input type="number" id="so-qty" placeholder="Quantity" min="1"/></div>
-      </div>
-      <div id="so-quickadd" style="display:none;background:#f0f7ff;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:600;color:#185FA5;margin-bottom:8px">Quick Add New Item</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="fg"><label>Item Name *</label><input id="soq-name" placeholder="Item name"/></div>
-          <div class="fg"><label>Category</label><select id="soq-cat"><option>Wires & Cables</option><option>Switches & Sockets</option><option>MCB & Distribution</option><option>Lights & Fixtures</option><option>Conduits & Fittings</option><option>Fans & Motors</option><option>Tools & Equipment</option><option>Other</option></select></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="fg"><label>Unit</label><select id="soq-unit"><option>DRUM</option><option>BAG</option><option>PKT</option><option>NOS</option><option>BUN</option><option>Meters</option><option>Rolls</option><option>Boxes</option><option>Sets</option><option>Kg</option><option>Coils</option></select></div>
-          <div class="fg"><label>Min Stock</label><input type="number" id="soq-min" value="10" min="0"/></div>
-          <div class="fg"><label>Brand</label><input id="soq-brand" placeholder="e.g. Havells"/></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn primary sm" onclick="inlineAddItem('so')">+ Save Item</button>
-          <button class="btn sm" onclick="hideQuickAdd('so')">Cancel</button>
-        </div>
-      </div>
-      <div class="frow c2">
-        <div class="fg"><label>Customer / Purpose</label><input id="so-cust" placeholder="Customer name or purpose"/></div>
-        <div class="fg"><label>Date</label><input type="date" id="so-date"/></div>
-      </div>
-      <div class="frow"><div class="fg"><label>Note</label><input id="so-note" placeholder="Bill no. or remarks"/></div></div>
-      <div class="ar"><button class="btn primary" onclick="addStockOut()">+ Record Stock OUT</button></div>
+    <!-- Selected item info bar -->
+    <div id="so-item-info" style="display:none;background:#e8f0fb;border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:13px;align-items:center;gap:16px;flex-wrap:wrap">
+      <div><span style="color:#555;font-size:11px">BRAND</span><div style="font-weight:700;color:#185FA5" id="so-info-brand"></div></div>
+      <div><span style="color:#555;font-size:11px">ITEM</span><div style="font-weight:700" id="so-info-name"></div></div>
+      <div><span style="color:#555;font-size:11px">CURRENT STOCK</span><div style="font-weight:700;color:#2e7d32" id="so-info-stock"></div></div>
+      <div><span style="color:#555;font-size:11px">UNIT</span><div style="font-weight:700" id="so-info-unit"></div></div>
     </div>
+    <input type="hidden" id="so-item" value=""/>
+    <!-- Entry fields -->
+    <div class="frow c3">
+      <div class="fg"><label>Quantity *</label><input type="number" id="so-qty" placeholder="Enter qty" min="1"/></div>
+      <div class="fg"><label>Customer / Purpose</label><input id="so-cust" placeholder="Customer name"/></div>
+      <div class="fg"><label>Date</label><input type="date" id="so-date"/></div>
+    </div>
+    <div class="frow"><div class="fg"><label>Note</label><input id="so-note" placeholder="Bill no. or remarks"/></div></div>
+    <div class="ar"><button class="btn primary" onclick="addStockOut()">+ Record Stock OUT</button></div>
   </div>
   <div class="card"><div class="card-title">Recent Stock OUT</div><div class="tw" id="soTable"><div class="loading">Loading...</div></div></div>
 </div>
@@ -377,7 +343,7 @@ function renderAll() {
   renderDash(); renderItems(); renderSI(); renderSO(); renderHistory(); renderAlerts(); fillSelects(); alertBadge();
   const addCard = document.getElementById('addItemCard');
   if(addCard) addCard.style.display = isAdmin ? 'block' : 'none';
-  const siCard = document.getElementById('siFormCard');
+  const siCard = document.getElementById('siFormCard'); filterItemsByBrand('si'); filterItemsByBrand('so');
   const siNotice = document.getElementById('siViewNotice');
   if(siCard) siCard.style.display = isAdmin ? 'block' : 'none';
   if(siNotice) siNotice.style.display = isAdmin ? 'none' : 'block';
@@ -672,7 +638,21 @@ function fillSelects() {
   if(soNone) soNone.style.display = noItems ? 'block' : 'none';
   if(soForm) soForm.style.display = noItems ? 'none' : 'block';
 
-  // si-item and so-item are now hidden inputs - no dropdown to fill
+  // Fill brand dropdowns for SI and SO
+  ['si','so'].forEach(prefix => {
+    const brandSel = document.getElementById(prefix+'-brand-sel');
+    if(!brandSel) return;
+    const prevBrand = brandSel.value;
+    const brands = [...new Set(items.map(i => i.brand||'Unknown Brand'))].sort();
+    brandSel.innerHTML = '<option value="">-- All Brands --</option>';
+    brands.forEach(b => {
+      const o = document.createElement('option');
+      o.value = b; o.textContent = b;
+      brandSel.appendChild(o);
+    });
+    brandSel.value = prevBrand;
+    filterItemsByBrand(prefix);
+  });
   // h-item is now a hidden input - handled by smart search
 }
 
@@ -741,7 +721,9 @@ async function addStockIn() {
   try{
     await api('POST','transactions',{item_id:itemId,type:'IN',qty,supplier:document.getElementById('si-sup').value.trim(),date:document.getElementById('si-date').value||today(),note:document.getElementById('si-note').value.trim()});
     toast('Stock IN saved!');
-    clearSearch('si');
+    document.getElementById('si-item').value='';
+    document.getElementById('si-item-sel').value='';
+    document.getElementById('si-item-info').style.display='none';
     document.getElementById('si-qty').value='';
     document.getElementById('si-sup').value='';
     document.getElementById('si-note').value='';
@@ -758,7 +740,9 @@ async function addStockOut() {
   try{
     await api('POST','transactions',{item_id:itemId,type:'OUT',qty,customer:document.getElementById('so-cust').value.trim(),date:document.getElementById('so-date').value||today(),note:document.getElementById('so-note').value.trim()});
     toast('Stock OUT saved!');
-    clearSearch('so');
+    document.getElementById('so-item').value='';
+    document.getElementById('so-item-sel').value='';
+    document.getElementById('so-item-info').style.display='none';
     document.getElementById('so-qty').value='';
     document.getElementById('so-cust').value='';
     document.getElementById('so-note').value='';
@@ -888,6 +872,44 @@ function closeSearch(prefix) {
   const dropId = prefix==='hi' ? 'hi-drop' : prefix+'-drop';
   const drop = document.getElementById(dropId);
   if(drop) drop.style.display = 'none';
+}
+
+
+function filterItemsByBrand(prefix) {
+  const brand = document.getElementById(prefix+'-brand-sel').value;
+  const itemSel = document.getElementById(prefix+'-item-sel');
+  const prev = document.getElementById(prefix+'-item').value;
+  const filtered = brand ? items.filter(i => (i.brand||'Unknown Brand') === brand) : items;
+  itemSel.innerHTML = '<option value="">-- Select Item --</option>';
+  filtered.sort((a,b)=>a.name.localeCompare(b.name)).forEach(i => {
+    const s = stock(i.id);
+    const o = document.createElement('option');
+    o.value = i.id;
+    o.textContent = i.name + ' (' + i.unit + ') — Stock: ' + s;
+    if(s <= i.min_stock && i.min_stock > 0) o.style.color = '#c62828';
+    itemSel.appendChild(o);
+  });
+  if(prev) itemSel.value = prev;
+  // Clear hidden + info if brand changed
+  document.getElementById(prefix+'-item').value = '';
+  document.getElementById(prefix+'-item-info').style.display = 'none';
+}
+
+function onItemSelect(prefix) {
+  const itemId = document.getElementById(prefix+'-item-sel').value;
+  document.getElementById(prefix+'-item').value = itemId;
+  const infoDiv = document.getElementById(prefix+'-item-info');
+  if(!itemId) { infoDiv.style.display = 'none'; return; }
+  const item = items.find(i => i.id === itemId);
+  if(!item) return;
+  const s = stock(item.id);
+  const low = s <= item.min_stock && item.min_stock > 0;
+  document.getElementById(prefix+'-info-brand').textContent = item.brand || '—';
+  document.getElementById(prefix+'-info-name').textContent = item.name;
+  document.getElementById(prefix+'-info-stock').textContent = s + ' ' + item.unit;
+  document.getElementById(prefix+'-info-stock').style.color = low ? '#c62828' : '#2e7d32';
+  document.getElementById(prefix+'-info-unit').textContent = item.unit;
+  infoDiv.style.display = 'flex';
 }
 
 document.getElementById('si-date').value=today();
