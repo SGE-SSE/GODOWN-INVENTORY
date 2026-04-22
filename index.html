@@ -11,6 +11,806 @@ body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f6fa;color:#1
 .topbar .title{font-size:17px;font-weight:600}
 .topbar .sub{font-size:12px;opacity:.8}
 .sync{font-size:11px;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px}
+.loc-bar{display:flex;background:#fff;border-bottom:1px solid #e0e0e0}
+.loc-btn{flex:1;max-width:200px;padding:10px 20px;border:none;background:#f4f6fa;color:#555;cursor:pointer;font-size:14px;font-family:inherit;font-weight:500;border-bottom:3px solid transparent}
+.loc-btn.active{background:#185FA5;color:#fff;font-weight:600;border-bottom:3px solid #0C447C}
+.nav{display:flex;background:#fff;border-bottom:1px solid #e0e0e0;overflow-x:auto}
+.nav button{padding:11px 16px;border:none;background:transparent;color:#555;cursor:pointer;font-size:13px;font-family:inherit;white-space:nowrap;border-bottom:3px solid transparent}
+.nav button.active{color:#185FA5;border-bottom:3px solid #185FA5;font-weight:600}
+.abadge{display:inline-block;background:#e53935;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px}
+.con{max-width:980px;margin:0 auto;padding:16px}
+.page{display:none}.page.active{display:block}
+.card{background:#fff;border-radius:10px;border:1px solid #e8e8e8;padding:18px;margin-bottom:14px}
+.card-title{font-size:15px;font-weight:600;margin-bottom:14px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.metric{background:#f0f4fa;border-radius:8px;padding:14px;text-align:center}
+.metric .ml{font-size:11px;color:#666;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.metric .mv{font-size:26px;font-weight:700}
+.mv.danger{color:#c62828}.mv.success{color:#2e7d32}.mv.info{color:#185FA5}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;background:#f8f9fa;border-bottom:1px solid #e0e0e0;color:#555;font-weight:500;font-size:12px}
+td{padding:8px 10px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:600}
+.badge.low{background:#ffebee;color:#c62828}
+.badge.ok{background:#e8f5e9;color:#2e7d32}
+.badge.in{background:#e8f5e9;color:#1b5e20}
+.badge.out{background:#fff3e0;color:#e65100}
+input,select{width:100%;padding:9px 11px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;background:#fff;color:#1a1a1a}
+input:focus,select:focus{outline:none;border-color:#185FA5}
+.fg label{font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:500}
+.frow{display:grid;gap:12px;margin-bottom:12px}
+.c2{grid-template-columns:1fr 1fr}
+.c3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:600px){.c2,.c3{grid-template-columns:1fr}}
+.btn{padding:9px 20px;border:1px solid #ddd;border-radius:7px;background:#fff;color:#333;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500}
+.btn:hover{background:#f5f5f5}
+.btn.primary{background:#185FA5;color:#fff;border-color:#185FA5}
+.btn.primary:hover{background:#0C447C}
+.btn.dng{background:#c62828;color:#fff;border-color:#c62828}
+.btn.sm{padding:5px 11px;font-size:12px}
+.btn.orange{background:#e65100;color:#fff;border-color:#e65100}
+.ar{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.arow{background:#fff8f8;border-left:3px solid #c62828;border-radius:6px;padding:11px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.aname{font-weight:600;color:#c62828;font-size:13px}
+.adetail{font-size:12px;color:#666;margin-top:2px}
+.apill{font-size:12px;background:#ffebee;color:#c62828;padding:4px 10px;border-radius:12px;font-weight:500}
+.empty{text-align:center;padding:40px;color:#999;font-size:13px}
+.loading{text-align:center;padding:32px;color:#888;font-size:13px}
+.tw{overflow-x:auto}
+.sbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.sbar input,.sbar select{margin-bottom:0;flex:1;min-width:120px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;padding:12px 22px;border-radius:8px;font-size:13px;font-weight:500;z-index:9999;display:none;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.ok{background:#2e7d32}.toast.err{background:#c62828}.toast.info{background:#185FA5}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:flex;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:12px;padding:28px 32px;min-width:280px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+/* Wire colours */
+.clr-btn{padding:6px 14px;border-radius:20px;border:2px solid transparent;cursor:pointer;font-size:12px;font-weight:700;transition:all .15s}
+.clr-btn:hover{transform:scale(1.05)}
+.clr-btn.sel{border-color:#333!important;box-shadow:0 0 0 3px rgba(0,0,0,.2);transform:scale(1.08)}
+/* Entry panel */
+.entry-panel{background:#fff7e6;border:1px solid #f0c060;border-radius:8px;padding:14px;margin-bottom:14px}
+/* Brand/cat headers */
+.brand-hdr{font-size:15px;font-weight:700;color:#185FA5;margin:20px 0 8px;padding:9px 14px;background:#e8f0fb;border-radius:8px;border-left:5px solid #185FA5}
+.cat-hdr{font-size:13px;font-weight:600;color:#5d4037;margin:10px 0 4px;padding:5px 12px;background:#fbe9e7;border-radius:5px;border-left:3px solid #ff7043}
+/* Queue table */
+.q-count{background:#185FA5;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px;margin-left:6px}
+.q-count.out{background:#e65100}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="title">⚡ <span id="locTitle">Godown</span> Inventory</div>
+    <div class="sub" id="locSub">SGE-SSE Inventory System</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="sync" id="syncBar">Connecting...</div>
+    <button id="adminLoginBtn" onclick="showPin()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:16px;cursor:pointer;font-size:12px;font-family:inherit">🔐 Admin</button>
+    <button id="adminLogoutBtn" style="display:none;background:#e53935;border:none;color:#fff;padding:5px 12px;border-radius:16px;cursor:pointer;font-size:12px;font-family:inherit" onclick="adminLogout()">✓ Admin — Logout</button>
+  </div>
+</div>
+
+<!-- PIN MODAL -->
+<div id="pinModal" class="modal-bg" style="display:none">
+  <div class="modal">
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px">Admin Login</div>
+    <div style="font-size:13px;color:#666;margin-bottom:16px">Enter PIN to access edit controls</div>
+    <input type="password" id="pinInput" placeholder="Enter PIN" maxlength="10" style="text-align:center;font-size:18px;letter-spacing:4px;margin-bottom:10px"/>
+    <div id="pinErr" style="color:#c62828;font-size:12px;margin-bottom:10px;display:none">Wrong PIN. Try again.</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button onclick="checkPin()" class="btn primary">Login</button>
+      <button onclick="document.getElementById('pinModal').style.display='none'" class="btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Location bar -->
+<div class="loc-bar">
+  <button class="loc-btn active" id="locBtn-GODOWN" onclick="switchLoc('GODOWN')">🏭 Godown</button>
+  <button class="loc-btn" id="locBtn-OFFICE" onclick="switchLoc('OFFICE')">🏢 Office</button>
+</div>
+
+<!-- Nav -->
+<nav class="nav">
+  <button class="active" onclick="go('dashboard',this)">Dashboard</button>
+  <button onclick="go('items',this)">Items</button>
+  <button onclick="go('stockin',this)">Stock IN</button>
+  <button onclick="go('stockout',this)">Stock OUT</button>
+  <button onclick="go('history',this)">History</button>
+  <button onclick="go('alerts',this)" id="alertsTab">Alerts</button>
+</nav>
+
+<div class="con">
+
+<!-- ===== DASHBOARD ===== -->
+<div id="page-dashboard" class="page active">
+  <div class="grid4">
+    <div class="metric"><div class="ml">Total Items</div><div class="mv info" id="m-total">—</div></div>
+    <div class="metric"><div class="ml">Low Stock</div><div class="mv danger" id="m-low">—</div></div>
+    <div class="metric"><div class="ml">Today IN</div><div class="mv success" id="m-in">—</div></div>
+    <div class="metric"><div class="ml">Today OUT (Items)</div><div class="mv" id="m-out">—</div></div>
+  </div>
+  <div id="dashAlerts"></div>
+  <div class="card" id="wireCard" style="display:none">
+    <div class="card-title">🔌 Wire Stock Overview <span style="font-size:12px;color:#888;font-weight:400" id="wireUnit"></span></div>
+    <div class="tw" id="dashWireTable"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Current Stock Overview</div>
+    <div class="tw" id="dashTable"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+<!-- ===== ITEMS ===== -->
+<div id="page-items" class="page">
+  <div class="card" id="addItemCard">
+    <div class="card-title">Add New Item</div>
+    <div class="frow c3">
+      <div class="fg"><label>Item Name *</label><input id="i-name" placeholder="e.g. MCB 32A"/></div>
+      <div class="fg"><label>Category</label><select id="i-cat">
+        <option>Wires &amp; Cables</option><option>Switches &amp; Sockets</option>
+        <option>MCB &amp; Distribution</option><option>Lights &amp; Fixtures</option>
+        <option>Conduits &amp; Fittings</option><option>Fans &amp; Motors</option>
+        <option>Tools &amp; Equipment</option><option>Other</option>
+      </select></div>
+      <div class="fg"><label>Unit</label><select id="i-unit">
+        <option>DRUM</option><option>BAG</option><option>PKT</option><option>NOS</option>
+        <option>BUN</option><option>Meters</option><option>Rolls</option><option>Boxes</option>
+        <option>Sets</option><option>Kg</option><option>Coils</option>
+      </select></div>
+    </div>
+    <div class="frow c3">
+      <div class="fg"><label>Opening Stock</label><input type="number" id="i-stock" value="0" min="0"/></div>
+      <div class="fg"><label>Min Stock (Alert Level)</label><input type="number" id="i-min" value="10" min="0"/></div>
+      <div class="fg"><label>Brand</label><input id="i-brand" placeholder="e.g. Havells, Polycab"/></div>
+    </div>
+    <div class="ar"><button class="btn primary" onclick="addItem()">+ Add Item</button></div>
+  </div>
+  <div class="card">
+    <div class="card-title">All Items</div>
+    <div class="sbar"><input id="itemSearch" placeholder="Search items..." oninput="renderItems()"/></div>
+    <div class="tw" id="itemsTable"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+<!-- ===== STOCK IN ===== -->
+<div id="page-stockin" class="page">
+  <div id="siAdminNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> — Login as Admin to record Stock IN</div>
+  <div id="siForm">
+    <div class="card">
+      <div class="card-title" style="color:#185FA5">Step 1 — Party &amp; Bill Details</div>
+      <div class="frow c3">
+        <div class="fg"><label>Supplier Name *</label><input id="si-sup" placeholder="Supplier / Vendor name"/></div>
+        <div class="fg"><label>Invoice No</label><input id="si-note" placeholder="Invoice number"/></div>
+        <div class="fg"><label>Date</label><input type="date" id="si-date"/></div>
+      </div>
+    </div>
+    <div class="entry-panel">
+      <div class="card-title" style="color:#185FA5;margin-bottom:12px">Step 2 — Select Items</div>
+      <div class="frow c2" style="margin-bottom:12px">
+        <div class="fg"><label>Brand</label><select id="si-brand" onchange="brandChange('si')"><option value="">-- All Brands --</option></select></div>
+        <div class="fg"><label>Item</label><select id="si-item" onchange="itemChange('si')"><option value="">-- Select Item --</option></select></div>
+      </div>
+      <div id="si-clr-box" style="display:none;margin-bottom:12px">
+        <label style="font-size:12px;font-weight:700;color:#6a1b9a;display:block;margin-bottom:8px">🎨 Select Wire Colour</label>
+        <div id="si-clr-btns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:12px;color:#555;margin-bottom:4px">Current Stock: <strong id="si-cur-stk" style="color:#2e7d32">—</strong></div>
+          <input type="number" id="si-qty" placeholder="Enter Quantity" min="1"/>
+        </div>
+        <button class="btn primary" style="padding:10px 24px" onclick="addToQueue('si')">+ Add to Queue</button>
+      </div>
+    </div>
+    <div class="card" id="si-q-card" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">📋 Queue <span class="q-count" id="si-q-count">0</span></div>
+        <button class="btn sm dng" onclick="clearQ('si')">Clear All</button>
+      </div>
+      <div class="tw" id="si-q-table"></div>
+      <div class="ar" style="margin-top:14px;padding-top:14px;border-top:1px solid #e0e0e0">
+        <button class="btn primary" style="padding:10px 32px;font-size:14px" onclick="submitQ('si')">✅ Submit All Stock IN</button>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Recent Stock IN</div><div class="tw" id="siTable"><div class="loading">Loading...</div></div></div>
+</div>
+
+<!-- ===== STOCK OUT ===== -->
+<div id="page-stockout" class="page">
+  <div id="soAdminNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> — Login as Admin to record Stock OUT</div>
+  <div id="soForm">
+    <div class="card">
+      <div class="card-title" style="color:#e65100">Step 1 — Party &amp; Bill Details</div>
+      <div class="frow c3">
+        <div class="fg"><label>Customer / Party Name *</label><input id="so-cust" placeholder="Customer name"/></div>
+        <div class="fg"><label>Bill No</label><input id="so-note" placeholder="Bill number"/></div>
+        <div class="fg"><label>Date</label><input type="date" id="so-date"/></div>
+      </div>
+    </div>
+    <div class="entry-panel">
+      <div class="card-title" style="color:#e65100;margin-bottom:12px">Step 2 — Select Items</div>
+      <div class="frow c2" style="margin-bottom:12px">
+        <div class="fg"><label>Brand</label><select id="so-brand" onchange="brandChange('so')"><option value="">-- All Brands --</option></select></div>
+        <div class="fg"><label>Item</label><select id="so-item" onchange="itemChange('so')"><option value="">-- Select Item --</option></select></div>
+      </div>
+      <div id="so-clr-box" style="display:none;margin-bottom:12px">
+        <label style="font-size:12px;font-weight:700;color:#6a1b9a;display:block;margin-bottom:8px">🎨 Select Wire Colour</label>
+        <div id="so-clr-btns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:12px;color:#555;margin-bottom:4px">Current Stock: <strong id="so-cur-stk" style="color:#2e7d32">—</strong></div>
+          <input type="number" id="so-qty" placeholder="Enter Quantity" min="1"/>
+        </div>
+        <button class="btn orange" style="padding:10px 24px" onclick="addToQueue('so')">+ Add to Queue</button>
+      </div>
+    </div>
+    <div class="card" id="so-q-card" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">📋 Queue <span class="q-count out" id="so-q-count">0</span></div>
+        <button class="btn sm dng" onclick="clearQ('so')">Clear All</button>
+      </div>
+      <div class="tw" id="so-q-table"></div>
+      <div class="ar" style="margin-top:14px;padding-top:14px;border-top:1px solid #e0e0e0">
+        <button class="btn orange" style="padding:10px 32px;font-size:14px" onclick="submitQ('so')">✅ Submit All Stock OUT</button>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="card-title">Recent Stock OUT</div><div class="tw" id="soTable"><div class="loading">Loading...</div></div></div>
+</div>
+
+<!-- ===== HISTORY ===== -->
+<div id="page-history" class="page">
+  <div class="card">
+    <div class="card-title">Transaction History</div>
+    <div class="sbar">
+      <select id="h-item" onchange="renderHistory()"><option value="">All Items</option></select>
+      <select id="h-type" onchange="renderHistory()"><option value="">All Types</option><option value="IN">IN</option><option value="OUT">OUT</option></select>
+      <input type="date" id="h-date" onchange="renderHistory()" style="max-width:160px;flex:none"/>
+      <button class="btn sm" onclick="clearHF()">Clear</button>
+    </div>
+    <div class="tw" id="histTable"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+<!-- ===== ALERTS ===== -->
+<div id="page-alerts" class="page">
+  <div class="card">
+    <div class="card-title">Low Stock Alerts</div>
+    <p style="font-size:13px;color:#666;margin-bottom:14px">Items below minimum level — reorder immediately</p>
+    <div id="alertsContent"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+</div><!-- /con -->
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPA_URL = 'https://ibawonlchzxmocoxkirz.supabase.co';
+const SUPA_KEY = 'sb_publishable_j3BvHCejXy9hOnlB0EpcSw_6nJM5N-l';
+const ADMIN_PIN = '220593';
+const WIRE_COLORS = ['RED','YELLOW','GREEN','BLUE','BLACK','WHITE','GREY'];
+const CLR_CSS = {
+  RED:'background:#e53935;color:#fff', YELLOW:'background:#FDD835;color:#333',
+  GREEN:'background:#7CB342;color:#fff', BLUE:'background:#1E88E5;color:#fff',
+  BLACK:'background:#212121;color:#FF8F00', WHITE:'background:#f5f5f5;color:#333;border:1px solid #ccc',
+  GREY:'background:#9E9E9E;color:#fff'
+};
+const CATS=['Wires & Cables','Switches & Sockets','MCB & Distribution','Lights & Fixtures','Conduits & Fittings','Fans & Motors','Tools & Equipment','Other'];
+const UNITS=['DRUM','BAG','PKT','NOS','BUN','Meters','Rolls','Boxes','Sets','Kg','Coils'];
+
+let items=[], txns=[], isAdmin=false, currentLoc='GODOWN';
+let siQueue=[], soQueue=[];
+let siSelItemId='', soSelItemId='';
+let editingId=null;
+
+const today=()=>new Date().toISOString().split('T')[0];
+
+// ── API ──────────────────────────────────────────────────────────
+const H={'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
+async function api(method,path,body){
+  const opts={method,headers:H};
+  if(body) opts.body=JSON.stringify(body);
+  const r=await fetch(SUPA_URL+'/rest/v1/'+path,opts);
+  const txt=await r.text();
+  if(!r.ok) throw new Error(txt);
+  return txt?JSON.parse(txt):[];
+}
+
+// ── TOAST ────────────────────────────────────────────────────────
+function toast(msg,type='info'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast '+type; t.style.display='block';
+  setTimeout(()=>t.style.display='none',3000);
+}
+function sync(msg){document.getElementById('syncBar').textContent=msg;}
+
+// ── LOAD DATA ────────────────────────────────────────────────────
+async function load(silent){
+  if(!silent) sync('Syncing...');
+  try{
+    const allItems=await api('GET','items?select=*&order=name');
+    const allTxns=await api('GET','transactions?select=*&order=created_at.desc');
+    items=allItems.filter(i=>(i.location||'GODOWN')===currentLoc);
+    const ids=new Set(items.map(i=>i.id));
+    txns=allTxns.filter(t=>ids.has(t.item_id));
+    sync('Synced '+new Date().toLocaleTimeString());
+    renderAll();
+  }catch(e){sync('Error'); toast('Connection error: '+e.message,'err');}
+}
+
+function stock(id){
+  const item=items.find(i=>i.id===id);
+  let s=item?(item.opening_stock||0):0;
+  txns.forEach(t=>{if(t.item_id===id) s+=t.type==='IN'?t.qty:-t.qty;});
+  return Math.max(0,s);
+}
+
+function isWire(item){
+  const n=(item.name||'').toUpperCase();
+  return n.includes('WIRE')||n.includes('SQMM')||n.includes('CABLE');
+}
+
+function baseName(name){
+  let n=name.toUpperCase();
+  WIRE_COLORS.forEach(c=>{n=n.replace(new RegExp('\\s+'+c+'$'),'').trim();});
+  return n;
+}
+
+// ── RENDER ALL ───────────────────────────────────────────────────
+function renderAll(){
+  renderDash(); renderItems(); renderSI(); renderSO(); renderHistory(); renderAlerts(); fillBrands(); alertBadge();
+  const hasQ = (siQueue.length>0)||(soQueue.length>0);
+  if(!hasQ){ fillSIBrands(); fillSOBrands(); }
+  // Admin visibility
+  document.getElementById('addItemCard').style.display=isAdmin?'block':'none';
+  document.getElementById('siForm').style.display=isAdmin?'block':'none';
+  document.getElementById('siAdminNotice').style.display=isAdmin?'none':'block';
+  document.getElementById('soForm').style.display=isAdmin?'block':'none';
+  document.getElementById('soAdminNotice').style.display=isAdmin?'none':'block';
+}
+
+// ── DASHBOARD ────────────────────────────────────────────────────
+function renderDash(){
+  const td=today();
+  const tIn=txns.filter(t=>t.type==='IN'&&t.date===td).reduce((s,t)=>s+t.qty,0);
+  const tOut=new Set(txns.filter(t=>t.type==='OUT'&&t.date===td).map(t=>t.item_id)).size;
+  const low=items.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0);
+  document.getElementById('m-total').textContent=items.length;
+  document.getElementById('m-low').textContent=low.length;
+  document.getElementById('m-in').textContent=tIn;
+  document.getElementById('m-out').textContent=tOut;
+  // Low stock alerts
+  const da=document.getElementById('dashAlerts');
+  da.innerHTML=low.length?'<div class="card" style="border-left:4px solid #c62828"><div class="card-title" style="color:#c62828">⚠ Low Stock ('+low.length+')</div>'+
+    low.map(i=>'<div class="arow"><div><div class="aname">'+i.name+'</div><div class="adetail">'+i.category+' · '+(i.brand||'—')+'</div></div><div class="apill">Stock: '+stock(i.id)+' | Min: '+i.min_stock+'</div></div>').join('')+'</div>':'';
+  // Wire grid
+  const wireItems=items.filter(isWire);
+  const wireCard=document.getElementById('wireCard');
+  const wireEl=document.getElementById('dashWireTable');
+  if(wireItems.length){
+    wireCard.style.display='block';
+    const CLR_BG={RED:'#e53935',YELLOW:'#FDD835',GREEN:'#7CB342',BLUE:'#1E88E5',BLACK:'#212121',WHITE:'#f5f5f5',GREY:'#9E9E9E'};
+    const CLR_TX={RED:'#fff',YELLOW:'#333',GREEN:'#fff',BLUE:'#fff',BLACK:'#FF8F00',WHITE:'#333',GREY:'#fff'};
+    const brands={};
+    wireItems.forEach(i=>{const b=i.brand||'Unknown';if(!brands[b])brands[b]=[];brands[b].push(i);});
+    let html='';
+    Object.keys(brands).sort().forEach(brand=>{
+      const bItems=brands[brand];
+      const usedColors=WIRE_COLORS.filter(c=>bItems.some(i=>i.name.toUpperCase().endsWith(' '+c)));
+      if(!usedColors.length) return;
+      const rows={};
+      bItems.forEach(i=>{
+        const color=WIRE_COLORS.find(c=>i.name.toUpperCase().endsWith(' '+c));
+        const base=baseName(i.name);
+        if(!rows[base]) rows[base]={};
+        rows[base][color||'OTHER']=i;
+      });
+      html+='<div style="font-size:14px;font-weight:700;color:#185FA5;margin:14px 0 8px;padding:6px 10px;background:#e8f0fb;border-radius:6px;border-left:4px solid #185FA5">🏷 '+brand+'</div>';
+      html+='<table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:8px"><thead><tr>';
+      html+='<th style="background:#f8f9fa;padding:9px 12px;text-align:left;border:1px solid #ddd;min-width:180px">Wire Type</th>';
+      usedColors.forEach(c=>{html+='<th style="background:'+CLR_BG[c]+';color:'+CLR_TX[c]+';padding:9px 14px;text-align:center;border:1px solid #ddd;min-width:70px;font-weight:700">'+c+'</th>';});
+      html+='</tr></thead><tbody>';
+      Object.keys(rows).sort().forEach((base,idx)=>{
+        html+='<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'">';
+        html+='<td style="padding:9px 12px;border:1px solid #e0e0e0;font-weight:500">'+base+'</td>';
+        usedColors.forEach(c=>{
+          const v=rows[base][c];
+          if(v){const s=stock(v.id),low=s<=v.min_stock&&v.min_stock>0;
+            html+='<td style="padding:9px 14px;text-align:center;border:1px solid #e0e0e0;background:'+(low?'#ffebee':CLR_BG[c]+'22')+';font-weight:700;color:'+(low?'#c62828':'#1a1a1a')+'">'+s+'</td>';
+          }else html+='<td style="padding:9px 14px;text-align:center;border:1px solid #e0e0e0;color:#ccc">—</td>';
+        });
+        html+='</tr>';
+      });
+      html+='</tbody></table>';
+    });
+    wireEl.innerHTML=html;
+  } else wireCard.style.display='none';
+  // Non-wire: Category → Brand → Items
+  const nonWire=items.filter(i=>!isWire(i));
+  const el=document.getElementById('dashTable');
+  if(!items.length){el.innerHTML='<div class="empty">No items yet. Add from Items tab.</div>';return;}
+  if(!nonWire.length){el.innerHTML='<div class="empty">All items are wires — shown above.</div>';return;}
+  const byCat={};
+  nonWire.forEach(i=>{
+    const cat=i.category||'Other', brand=i.brand||'Unknown Brand';
+    if(!byCat[cat]) byCat[cat]={};
+    if(!byCat[cat][brand]) byCat[cat][brand]=[];
+    byCat[cat][brand].push(i);
+  });
+  let nwHtml='';
+  Object.keys(byCat).sort().forEach(cat=>{
+    const catBrands=byCat[cat];
+    const allCatItems=Object.values(catBrands).flat();
+    const catLow=allCatItems.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).length;
+    nwHtml+='<div class="brand-hdr" style="color:#185FA5;background:#e8f0fb;border-left:5px solid #185FA5">📂 '+cat+'<span style="float:right;font-size:12px;font-weight:400;color:#555">'+allCatItems.length+' items'+(catLow?' · <span style="color:#c62828">'+catLow+' low</span>':'')+'</span></div>';
+    Object.keys(catBrands).sort().forEach(brand=>{
+      const bItems=catBrands[brand].sort((a,b)=>a.name.localeCompare(b.name));
+      const bLow=bItems.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).length;
+      nwHtml+='<div class="cat-hdr">🏷 '+brand+'<span style="float:right;font-size:11px;font-weight:400;color:#888">'+bItems.length+' items'+(bLow?' · <span style="color:#c62828">'+bLow+' low</span>':'')+'</span></div>';
+      nwHtml+='<table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:12px"><thead><tr><th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:left">Item</th><th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center;min-width:70px">Stock</th><th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center">Unit</th><th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center">Min</th><th style="background:#f8f9fa;padding:8px 10px;border:1px solid #e0e0e0;text-align:center">Status</th></tr></thead><tbody>';
+      bItems.forEach((i,idx)=>{
+        const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+        nwHtml+='<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'">'
+          +'<td style="padding:8px 10px;border:1px solid #e0e0e0;font-weight:500">'+i.name+'</td>'
+          +'<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center;font-weight:700;'+(low?'color:#c62828;background:#ffebee':'')+'">'+ s+'</td>'
+          +'<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center">'+i.unit+'</td>'
+          +'<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center">'+i.min_stock+'</td>'
+          +'<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center"><span class="badge '+(low?'low':'ok')+'">'+(low?'Low':'OK')+'</span></td>'
+          +'</tr>';
+      });
+      nwHtml+='</tbody></table>';
+    });
+  });
+  el.innerHTML=nwHtml;
+}
+
+// ── ITEMS PAGE ───────────────────────────────────────────────────
+function renderItems(){
+  const el=document.getElementById('itemsTable');
+  const q=(document.getElementById('itemSearch')?.value||'').toLowerCase();
+  const list=items.filter(i=>i.name.toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q));
+  if(!list.length){el.innerHTML='<div class="empty">No items found.</div>';return;}
+  const catOpts=s=>CATS.map(c=>'<option'+(c===s?' selected':'')+'>'+c+'</option>').join('');
+  const unitOpts=s=>UNITS.map(u=>'<option'+(u===s?' selected':'')+'>'+u+'</option>').join('');
+  el.innerHTML='<table><thead><tr><th>Name</th><th>Category</th><th>Stock</th><th>Min</th><th>Unit</th><th>Brand</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'+
+    list.map(i=>{
+      const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+      if(isAdmin&&editingId===i.id) return '<tr style="background:#f0f7ff"><td><input id="e-name" value="'+i.name+'" style="padding:5px 7px;font-size:12px"/></td><td><select id="e-cat" style="padding:5px 7px;font-size:12px">'+catOpts(i.category)+'</select></td><td style="font-weight:700;'+(low?'color:#c62828':'')+'">'+ s+'</td><td><input id="e-min" type="number" value="'+i.min_stock+'" style="padding:5px 7px;font-size:12px;width:60px"/></td><td><select id="e-unit" style="padding:5px 7px;font-size:12px">'+unitOpts(i.unit)+'</select></td><td><input id="e-brand" value="'+(i.brand||'')+'" placeholder="Brand" style="padding:5px 7px;font-size:12px"/></td><td style="white-space:nowrap"><button class="btn sm primary" onclick="saveEdit(\''+i.id+'\')" style="margin-right:4px">Save</button><button class="btn sm" onclick="cancelEdit()">✕</button></td></tr>';
+      return '<tr><td style="font-weight:500">'+i.name+'</td><td>'+i.category+'</td><td style="font-weight:700;'+(low?'color:#c62828':'')+'">'+ s+'</td><td>'+i.min_stock+'</td><td>'+i.unit+'</td><td>'+(i.brand||'—')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm" onclick="startEdit(\''+i.id+'\')" style="margin-right:4px">Edit</button><button class="btn sm dng" onclick="delItem(\''+i.id+'\')">Del</button></td>':'')+'</tr>';
+    }).join('')+'</tbody></table>';
+}
+function startEdit(id){editingId=id;renderItems();}
+function cancelEdit(){editingId=null;renderItems();}
+async function saveEdit(id){
+  const name=document.getElementById('e-name').value.trim();
+  if(!name){toast('Name cannot be empty','err');return;}
+  try{
+    await api('PATCH','items?id=eq.'+id,{name,category:document.getElementById('e-cat').value,unit:document.getElementById('e-unit').value,min_stock:parseFloat(document.getElementById('e-min').value)||0,brand:document.getElementById('e-brand').value.trim()});
+    toast('Item updated!','ok'); editingId=null; load(true);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function addItem(){
+  const name=document.getElementById('i-name').value.trim();
+  if(!name){toast('Enter item name','err');return;}
+  try{
+    await api('POST','items',{name,category:document.getElementById('i-cat').value,unit:document.getElementById('i-unit').value,opening_stock:parseFloat(document.getElementById('i-stock').value)||0,min_stock:parseFloat(document.getElementById('i-min').value)||0,brand:document.getElementById('i-brand').value.trim(),location:currentLoc});
+    toast('Item added!','ok');
+    document.getElementById('i-name').value='';
+    document.getElementById('i-stock').value='0';
+    document.getElementById('i-min').value='10';
+    document.getElementById('i-brand').value='';
+    load(true);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+async function delItem(id){
+  if(!confirm('Delete this item?')) return;
+  try{await api('DELETE','items?id=eq.'+id);toast('Deleted','ok');load(true);}catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── STOCK IN / OUT BRAND → ITEM → COLOUR ────────────────────────
+function fillBrands(){
+  const brands=[...new Set(items.map(i=>i.brand||'Unknown Brand'))].sort();
+  ['si-brand','so-brand','h-item'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const prev=el.value;
+    el.innerHTML=id==='h-item'?'<option value="">All Items</option>':'<option value="">-- All Brands --</option>';
+    if(id==='h-item'){
+      items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=(i.brand?'['+i.brand+'] ':'')+i.name;el.appendChild(o);});
+    } else {
+      brands.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;el.appendChild(o);});
+    }
+    if(prev) el.value=prev;
+  });
+}
+
+function fillSIBrands(){ fillBrands(); }
+function fillSOBrands(){ fillBrands(); }
+
+function brandChange(prefix){
+  const brand=document.getElementById(prefix+'-brand').value;
+  const itemSel=document.getElementById(prefix+'-item');
+  itemSel.innerHTML='<option value="">-- Select Item --</option>';
+  const filtered=brand?items.filter(i=>(i.brand||'Unknown Brand')===brand):items;
+  filtered.sort((a,b)=>a.name.localeCompare(b.name)).forEach(i=>{
+    const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+    const o=document.createElement('option');
+    o.value=i.id;
+    o.textContent=i.name+' ('+i.unit+') — Stock: '+s+(low?' ⚠':'');
+    if(low) o.style.color='#c62828';
+    itemSel.appendChild(o);
+  });
+  document.getElementById(prefix+'-clr-box').style.display='none';
+  document.getElementById(prefix+'-cur-stk').textContent='—';
+  if(prefix==='si') siSelItemId=''; else soSelItemId='';
+}
+
+function itemChange(prefix){
+  const itemId=document.getElementById(prefix+'-item').value;
+  if(prefix==='si') siSelItemId=itemId; else soSelItemId=itemId;
+  if(!itemId){
+    document.getElementById(prefix+'-clr-box').style.display='none';
+    document.getElementById(prefix+'-cur-stk').textContent='—';
+    return;
+  }
+  const item=items.find(i=>i.id===itemId);
+  if(!item) return;
+  // Update stock display
+  const s=stock(itemId),low=s<=item.min_stock&&item.min_stock>0;
+  const stk=document.getElementById(prefix+'-cur-stk');
+  stk.textContent=s+' '+item.unit+(low?' ⚠':'');
+  stk.style.color=low?'#c62828':'#2e7d32';
+  // Check colour variants
+  if(isWire(item)){
+    const base=baseName(item.name), brand=item.brand||'';
+    const variants=items.filter(i=>(i.brand||'')===brand&&baseName(i.name)===base);
+    const colored=variants.filter(i=>WIRE_COLORS.some(c=>i.name.toUpperCase().endsWith(' '+c)));
+    if(colored.length>1){
+      const btns=document.getElementById(prefix+'-clr-btns');
+      btns.innerHTML='';
+      WIRE_COLORS.forEach(c=>{
+        const v=colored.find(i=>i.name.toUpperCase().endsWith(' '+c));
+        if(!v) return;
+        const vs=stock(v.id),vlow=vs<=v.min_stock&&v.min_stock>0;
+        const btn=document.createElement('button');
+        btn.type='button';
+        btn.className='clr-btn';
+        btn.style.cssText=CLR_CSS[c]||'background:#888;color:#fff';
+        btn.innerHTML='● '+c+' <span style="font-size:10px;opacity:.85">('+vs+')'+(vlow?' ⚠':'')+'</span>';
+        // Auto-select if matches current item
+        const curColor=WIRE_COLORS.find(c2=>item.name.toUpperCase().endsWith(' '+c2));
+        if(c===curColor) btn.classList.add('sel');
+        btn.addEventListener('click',(function(vid,btnEl){
+          return function(){
+            // Deselect all
+            document.querySelectorAll('#'+prefix+'-clr-btns .clr-btn').forEach(b=>b.classList.remove('sel'));
+            btnEl.classList.add('sel');
+            if(prefix==='si') siSelItemId=vid; else soSelItemId=vid;
+            const ci=items.find(i=>i.id===vid);
+            if(ci){const cs=stock(vid),cl=cs<=ci.min_stock&&ci.min_stock>0;stk.textContent=cs+' '+ci.unit+(cl?' ⚠':'');stk.style.color=cl?'#c62828':'#2e7d32';}
+            document.getElementById(prefix+'-qty').focus();
+          };
+        })(v.id,btn));
+        btns.appendChild(btn);
+      });
+      document.getElementById(prefix+'-clr-box').style.display='block';
+      return;
+    }
+  }
+  document.getElementById(prefix+'-clr-box').style.display='none';
+}
+
+// ── QUEUE ────────────────────────────────────────────────────────
+function addToQueue(prefix){
+  const itemId=prefix==='si'?siSelItemId:soSelItemId;
+  const qty=parseFloat(document.getElementById(prefix+'-qty').value);
+  if(!itemId){toast('Select an item','err');return;}
+  if(!qty||qty<=0){toast('Enter quantity','err');return;}
+  const item=items.find(i=>i.id===itemId);
+  if(!item) return;
+  if(prefix==='so'&&qty>stock(itemId)){toast('Not enough stock! Available: '+stock(itemId),'err');return;}
+  const q=prefix==='si'?siQueue:soQueue;
+  const ex=q.find(x=>x.itemId===itemId);
+  if(ex){ex.qty+=qty;toast('Qty updated! ✓','ok');}
+  else{q.push({itemId,qty,name:item.name,brand:item.brand||'',unit:item.unit});toast('Added to queue! ✓','ok');}
+  document.getElementById(prefix+'-qty').value='';
+  document.getElementById(prefix+'-qty').focus();
+  renderQ(prefix);
+}
+
+function renderQ(prefix){
+  const q=prefix==='si'?siQueue:soQueue;
+  const card=document.getElementById(prefix+'-q-card');
+  document.getElementById(prefix+'-q-count').textContent=q.length;
+  if(!q.length){card.style.display='none';return;}
+  card.style.display='block';
+  const wrap=document.getElementById(prefix+'-q-table');
+  const tbl=document.createElement('table');
+  tbl.style.cssText='border-collapse:collapse;width:100%;font-size:13px';
+  const thead=tbl.createTHead(),hr=thead.insertRow();
+  ['#','Item','Brand','Qty','Unit',''].forEach(h=>{
+    const th=document.createElement('th');
+    th.textContent=h; th.style.cssText='padding:8px 10px;background:#f8f9fa;border:1px solid #e0e0e0;text-align:'+(h==='Item'||h==='Brand'?'left':'center');
+    hr.appendChild(th);
+  });
+  const tbody=tbl.createTBody();
+  q.forEach((x,i)=>{
+    const row=tbody.insertRow(); row.style.background=i%2===0?'#fff':'#fafafa';
+    [[i+1,'center'],[x.name,'left','500'],[x.brand,'left','500;color:#185FA5'],[x.qty,'center','700'],[x.unit,'center'],['','center']].forEach((v,ci)=>{
+      const td=row.insertCell(); td.style.cssText='padding:8px 10px;border:1px solid #e0e0e0;text-align:'+v[1]+(v[2]?';font-weight:'+v[2]:'');
+      if(ci===5){const btn=document.createElement('button');btn.className='btn sm dng';btn.textContent='✕';btn.addEventListener('click',(function(p,idx){return function(){removeQ(p,idx);};})(prefix,i));td.appendChild(btn);}
+      else td.textContent=v[0];
+    });
+  });
+  wrap.innerHTML=''; wrap.appendChild(tbl);
+}
+
+function removeQ(prefix,idx){
+  if(prefix==='si') siQueue.splice(idx,1); else soQueue.splice(idx,1);
+  renderQ(prefix);
+}
+
+function clearQ(prefix){
+  if(!confirm('Clear all items from queue?')) return;
+  if(prefix==='si') siQueue=[]; else soQueue=[];
+  renderQ(prefix);
+}
+
+async function submitQ(prefix){
+  const q=prefix==='si'?siQueue:soQueue;
+  if(!q.length){toast('Queue is empty','err');return;}
+  const partyEl=document.getElementById(prefix==='si'?'si-sup':'so-cust');
+  const party=partyEl.value.trim();
+  if(!party){toast('Enter '+(prefix==='si'?'Supplier':'Customer')+' name','err');partyEl.focus();return;}
+  const note=document.getElementById(prefix+'-note').value.trim();
+  const date=document.getElementById(prefix+'-date').value||today();
+  if(prefix==='so'){
+    for(const x of q){if(x.qty>stock(x.itemId)){toast('Not enough stock: '+x.name+' (Have: '+stock(x.itemId)+')','err');return;}}
+  }
+  try{
+    for(const x of q){
+      const txn={item_id:x.itemId,type:prefix==='si'?'IN':'OUT',qty:x.qty,date,note};
+      if(prefix==='si') txn.supplier=party; else txn.customer=party;
+      await api('POST','transactions',txn);
+    }
+    const cnt=q.length;
+    if(prefix==='si'){siQueue=[];document.getElementById('si-sup').value='';document.getElementById('si-note').value='';}
+    else{soQueue=[];document.getElementById('so-cust').value='';document.getElementById('so-note').value='';}
+    renderQ(prefix);
+    toast(cnt+' items submitted! 🎉','ok');
+    load(true);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── RECENT SI / SO ───────────────────────────────────────────────
+function renderSI(){
+  const el=document.getElementById('siTable');
+  const list=txns.filter(t=>t.type==='IN').slice(0,30);
+  if(!list.length){el.innerHTML='<div class="empty">No records yet.</div>';return;}
+  el.innerHTML='<table><thead><tr><th>Date</th><th>Item</th><th>Brand</th><th>Qty</th><th>Supplier</th><th>Note</th></tr></thead><tbody>'+
+    list.map(t=>{const it=items.find(i=>i.id===t.item_id);
+      return '<tr><td>'+t.date+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#2e7d32;font-weight:700">+'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.supplier||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+function renderSO(){
+  const el=document.getElementById('soTable');
+  const list=txns.filter(t=>t.type==='OUT').slice(0,30);
+  if(!list.length){el.innerHTML='<div class="empty">No records yet.</div>';return;}
+  el.innerHTML='<table><thead><tr><th>Date</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Note</th></tr></thead><tbody>'+
+    list.map(t=>{const it=items.find(i=>i.id===t.item_id);
+      return '<tr><td>'+t.date+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+// ── HISTORY ──────────────────────────────────────────────────────
+function renderHistory(){
+  const el=document.getElementById('histTable');
+  const iF=document.getElementById('h-item')?.value||'';
+  const tF=document.getElementById('h-type')?.value||'';
+  const dF=document.getElementById('h-date')?.value||'';
+  let list=[...txns];
+  if(iF) list=list.filter(t=>t.item_id===iF);
+  if(tF) list=list.filter(t=>t.type===tF);
+  if(dF) list=list.filter(t=>t.date===dF);
+  if(!list.length){el.innerHTML='<div class="empty">No transactions match filter.</div>';return;}
+  el.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note</th></tr></thead><tbody>'+
+    list.map(t=>{const it=items.find(i=>i.id===t.item_id),p=t.type==='IN'?(t.supplier||'—'):(t.customer||'—');
+      return '<tr><td>'+t.date+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td>'+p+'</td><td>'+(t.note||'—')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+function clearHF(){document.getElementById('h-item').value='';document.getElementById('h-type').value='';document.getElementById('h-date').value='';renderHistory();}
+
+// ── ALERTS ───────────────────────────────────────────────────────
+function renderAlerts(){
+  const el=document.getElementById('alertsContent');
+  const low=items.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0);
+  if(!low.length){el.innerHTML='<div style="color:#2e7d32;padding:12px 0">✓ All items adequately stocked.</div>';return;}
+  el.innerHTML=low.map(i=>{const s=stock(i.id);
+    return '<div class="arow"><div><div class="aname">'+i.name+'</div><div class="adetail">'+i.category+' · '+(i.unit||'')+(i.brand?' · '+i.brand:'')+'</div></div><div class="apill">Stock: '+s+' | Min: '+i.min_stock+' | Need '+(i.min_stock-s)+' more</div></div>';
+  }).join('');
+}
+function alertBadge(){
+  const n=items.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).length;
+  document.getElementById('alertsTab').innerHTML='Alerts'+(n>0?'<span class="abadge">'+n+'</span>':'');
+}
+
+// ── LOCATION SWITCH ──────────────────────────────────────────────
+function switchLoc(loc){
+  currentLoc=loc;
+  editingId=null; siQueue=[]; soQueue=[];
+  document.getElementById('locBtn-GODOWN').className='loc-btn'+(loc==='GODOWN'?' active':'');
+  document.getElementById('locBtn-OFFICE').className='loc-btn'+(loc==='OFFICE'?' active':'');
+  document.getElementById('locTitle').textContent=loc==='GODOWN'?'Godown':'Office';
+  document.getElementById('locSub').textContent=loc==='GODOWN'?'Godown Stock Management':'Office Stock Management';
+  load();
+}
+
+// ── ADMIN / PIN ───────────────────────────────────────────────────
+function showPin(){
+  document.getElementById('pinModal').style.display='flex';
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinErr').style.display='none';
+  setTimeout(()=>document.getElementById('pinInput').focus(),100);
+}
+function checkPin(){
+  if(document.getElementById('pinInput').value===ADMIN_PIN){
+    isAdmin=true;
+    document.getElementById('pinModal').style.display='none';
+    document.getElementById('adminLoginBtn').style.display='none';
+    document.getElementById('adminLogoutBtn').style.display='inline-block';
+    renderAll();
+    toast('Admin mode ON','ok');
+  } else {
+    document.getElementById('pinErr').style.display='block';
+  }
+}
+function adminLogout(){
+  isAdmin=false; editingId=null;
+  document.getElementById('adminLoginBtn').style.display='inline-block';
+  document.getElementById('adminLogoutBtn').style.display='none';
+  renderAll();
+  toast('Logged out from admin','info');
+}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none') checkPin();});
+
+// ── PAGE NAV ─────────────────────────────────────────────────────
+function go(name,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+document.getElementById('si-date').value=today();
+document.getElementById('so-date').value=today();
+load();
+setInterval(()=>{
+  const hasQ=(siQueue.length>0)||(soQueue.length>0);
+  const hasData=!!(document.getElementById('si-sup').value||document.getElementById('so-cust').value);
+  load(hasQ||hasData);
+},30000);
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SGE-SSE Inventory System</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:14px;background:#f4f6fa;color:#1a1a1a;min-height:100vh}
+.topbar{background:#185FA5;color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.topbar .title{font-size:17px;font-weight:600}
+.topbar .sub{font-size:12px;opacity:.8}
+.sync{font-size:11px;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:20px}
 .nav{display:flex;gap:0;background:#fff;border-bottom:1px solid #e0e0e0;overflow-x:auto}
 .nav button{padding:12px 16px;border:none;background:transparent;color:#555;cursor:pointer;font-size:13px;font-family:inherit;white-space:nowrap;border-bottom:3px solid transparent}
 .nav button.active{color:#185FA5;border-bottom:3px solid #185FA5;font-weight:600}
