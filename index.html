@@ -311,11 +311,89 @@ async function load() {
     const itemIds = new Set(items.map(i=>i.id));
     txns = allTxns.filter(t => itemIds.has(t.item_id));
     sync('Synced ' + new Date().toLocaleTimeString());
-    renderAll();
+    renderAllSafe();
   } catch(e) {
     sync('Error');
     toast('Connection error: ' + e.message, 'err');
   }
+}
+
+function isFormActive() {
+  // Check if user has selected an item or entered any data in SI or SO forms
+  const siItem = document.getElementById('si-item')?.value;
+  const soItem = document.getElementById('so-item')?.value;
+  const siQty  = document.getElementById('si-qty')?.value;
+  const soQty  = document.getElementById('so-qty')?.value;
+  const siSup  = document.getElementById('si-sup')?.value;
+  const soCust = document.getElementById('so-cust')?.value;
+  const siNote = document.getElementById('si-note')?.value;
+  const soNote = document.getElementById('so-note')?.value;
+  return !!(siItem || soItem || siQty || soQty || siSup || soCust || siNote || soNote);
+}
+
+function renderAllSafe() {
+  // Always render everything except SI/SO forms if user is actively filling them
+  renderDash();
+  renderItems();
+  renderHistory();
+  renderAlerts();
+  alertBadge();
+  const addCard = document.getElementById('addItemCard');
+  if(addCard) addCard.style.display = isAdmin ? 'block' : 'none';
+  const siCard = document.getElementById('siFormCard');
+  const siNotice = document.getElementById('siViewNotice');
+  if(siCard) siCard.style.display = isAdmin ? 'block' : 'none';
+  if(siNotice) siNotice.style.display = isAdmin ? 'none' : 'block';
+  const soCard = document.getElementById('soFormCard');
+  const soNotice = document.getElementById('soViewNotice');
+  if(soCard) soCard.style.display = isAdmin ? 'block' : 'none';
+  if(soNotice) soNotice.style.display = isAdmin ? 'none' : 'block';
+
+  if(!isFormActive()) {
+    // Safe to refresh SI/SO brand/item dropdowns only when forms are empty
+    renderSI();
+    renderSO();
+    fillSelects();
+  } else {
+    // Form is active - only refresh the brand dropdowns silently without resetting selection
+    syncBrandDropdowns();
+  }
+}
+
+function syncBrandDropdowns() {
+  // Refresh brand list without touching selected values
+  ['si','so'].forEach(prefix => {
+    const brandSel = document.getElementById(prefix+'-brand-sel');
+    if(!brandSel) return;
+    const prevBrand = brandSel.value;
+    const prevItem = document.getElementById(prefix+'-item-sel')?.value;
+    const brands = [...new Set(items.map(i => i.brand||'Unknown Brand'))].sort();
+    brandSel.innerHTML = '<option value="">-- All Brands --</option>';
+    brands.forEach(b => {
+      const o = document.createElement('option');
+      o.value = b; o.textContent = b;
+      brandSel.appendChild(o);
+    });
+    brandSel.value = prevBrand;
+    // Restore item selection
+    if(prevItem) {
+      const itemSel = document.getElementById(prefix+'-item-sel');
+      if(itemSel) {
+        // Rebuild filtered items preserving selection
+        const filtered = prevBrand ? items.filter(i=>(i.brand||'Unknown Brand')===prevBrand) : items;
+        itemSel.innerHTML = '<option value="">-- Select Item --</option>';
+        filtered.sort((a,b)=>a.name.localeCompare(b.name)).forEach(i => {
+          const s = stock(i.id);
+          const o = document.createElement('option');
+          o.value = i.id;
+          o.textContent = i.name + ' (' + i.unit + ') — Stock: ' + s;
+          if(s <= i.min_stock && i.min_stock > 0) o.style.color = '#c62828';
+          itemSel.appendChild(o);
+        });
+        itemSel.value = prevItem;
+      }
+    }
+  });
 }
 
 function switchLoc(loc, btn) {
@@ -343,7 +421,7 @@ function renderAll() {
   renderDash(); renderItems(); renderSI(); renderSO(); renderHistory(); renderAlerts(); fillSelects(); alertBadge();
   const addCard = document.getElementById('addItemCard');
   if(addCard) addCard.style.display = isAdmin ? 'block' : 'none';
-  const siCard = document.getElementById('siFormCard'); filterItemsByBrand('si'); filterItemsByBrand('so');
+  const siCard = document.getElementById('siFormCard');
   const siNotice = document.getElementById('siViewNotice');
   if(siCard) siCard.style.display = isAdmin ? 'block' : 'none';
   if(siNotice) siNotice.style.display = isAdmin ? 'none' : 'block';
@@ -351,6 +429,7 @@ function renderAll() {
   const soNotice = document.getElementById('soViewNotice');
   if(soCard) soCard.style.display = isAdmin ? 'block' : 'none';
   if(soNotice) soNotice.style.display = isAdmin ? 'none' : 'block';
+  filterItemsByBrand('si'); filterItemsByBrand('so');
 }
 
 function isWireItem(i) {
