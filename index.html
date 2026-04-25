@@ -73,6 +73,28 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 /* Brand/cat headers */
 .brand-hdr{font-size:15px;font-weight:700;color:#185FA5;margin:20px 0 8px;padding:9px 14px;background:#e8f0fb;border-radius:8px;border-left:5px solid #185FA5}
 .cat-hdr{font-size:13px;font-weight:600;color:#5d4037;margin:10px 0 4px;padding:5px 12px;background:#fbe9e7;border-radius:5px;border-left:3px solid #ff7043}
+/* Confirm modal */
+.cfm-modal{background:#fff;border-radius:14px;padding:0;min-width:320px;max-width:560px;width:94vw;box-shadow:0 8px 40px rgba(0,0,0,.25);overflow:hidden}
+.cfm-hdr{padding:18px 22px 14px;border-bottom:1px solid #f0f0f0}
+.cfm-hdr.red{background:#fff5f5;border-bottom:1px solid #ffcdd2}
+.cfm-hdr.green{background:#f1f8f1;border-bottom:1px solid #c8e6c9}
+.cfm-hdr.blue{background:#e8f0fb;border-bottom:1px solid #bbdefb}
+.cfm-hdr.orange{background:#fff8f0;border-bottom:1px solid #ffe0b2}
+.cfm-icon{font-size:22px;margin-bottom:4px}
+.cfm-title{font-size:15px;font-weight:700;margin-bottom:2px}
+.cfm-sub{font-size:12px;color:#666}
+.cfm-body{padding:14px 22px;max-height:55vh;overflow-y:auto}
+.cfm-item-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:7px;margin-bottom:6px;background:#f8f9fa;border:1px solid #e8e8e8;font-size:13px}
+.cfm-item-row:last-child{margin-bottom:0}
+.cfm-item-name{font-weight:600;color:#1a1a1a}
+.cfm-item-brand{font-size:11px;color:#185FA5;margin-top:1px}
+.cfm-item-qty{font-weight:700;font-size:14px;padding:4px 10px;border-radius:16px;white-space:nowrap}
+.cfm-qty-in{background:#e8f5e9;color:#1b5e20}
+.cfm-qty-out{background:#fff3e0;color:#e65100}
+.cfm-qty-del{background:#ffebee;color:#c62828}
+.cfm-qty-edit{background:#e8f0fb;color:#185FA5}
+.cfm-summary{font-size:12px;color:#555;padding:8px 12px;background:#f4f6fa;border-radius:7px;margin-top:10px}
+.cfm-footer{padding:14px 22px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:8px;background:#fafafa}
 /* Queue table */
 .q-count{background:#185FA5;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px;margin-left:6px}
 .q-count.out{background:#e65100}
@@ -102,6 +124,25 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div style="display:flex;gap:8px;justify-content:center">
       <button onclick="checkPin()" class="btn primary">Login</button>
       <button onclick="document.getElementById('pinModal').style.display='none'" class="btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- RICH CONFIRM MODAL -->
+<div id="cfmModal" class="modal-bg" style="display:none">
+  <div class="cfm-modal">
+    <div class="cfm-hdr" id="cfmHdr">
+      <div class="cfm-icon" id="cfmIcon"></div>
+      <div class="cfm-title" id="cfmTitle"></div>
+      <div class="cfm-sub" id="cfmSub"></div>
+    </div>
+    <div class="cfm-body">
+      <div id="cfmItems"></div>
+      <div class="cfm-summary" id="cfmSummary" style="display:none"></div>
+    </div>
+    <div class="cfm-footer">
+      <button id="cfmOkBtn" class="btn primary" onclick="cfmResolve(true)">Confirm</button>
+      <button class="btn" onclick="cfmResolve(false)">Cancel</button>
     </div>
   </div>
 </div>
@@ -508,8 +549,22 @@ function cancelEdit(){editingId=null;renderItems();}
 async function saveEdit(id){
   const name=document.getElementById('e-name').value.trim();
   if(!name){toast('Name cannot be empty','err');return;}
+  const cat=document.getElementById('e-cat').value;
+  const unit=document.getElementById('e-unit').value;
+  const min=parseFloat(document.getElementById('e-min').value)||0;
+  const brand=document.getElementById('e-brand').value.trim();
+  const origItem=items.find(i=>i.id===id);
+  const ok=await showConfirm({
+    icon:'✏️',title:'Confirm Save Item Changes',
+    sub:'The following item will be updated:',
+    theme:'blue',
+    items:[{name,brand,qty:'Min: '+min+' '+unit,qtyClass:'cfm-qty-edit'}],
+    summary:'Category: '+cat+(origItem&&origItem.name!==name?' | Name changed from: '+origItem.name:''),
+    okLabel:'✅ Save Changes',okClass:'primary'
+  });
+  if(!ok) return;
   try{
-    await api('PATCH','items?id=eq.'+id,{name,category:document.getElementById('e-cat').value,unit:document.getElementById('e-unit').value,min_stock:parseFloat(document.getElementById('e-min').value)||0,brand:document.getElementById('e-brand').value.trim()});
+    await api('PATCH','items?id=eq.'+id,{name,category:cat,unit,min_stock:min,brand});
     toast('Item updated!','ok'); editingId=null; load(true);
   }catch(e){toast('Error: '+e.message,'err');}
 }
@@ -527,8 +582,25 @@ async function addItem(){
   }catch(e){toast('Error: '+e.message,'err');}
 }
 async function delItem(id){
-  if(!confirm('Delete this item?')) return;
-  try{await api('DELETE','items?id=eq.'+id);toast('Deleted','ok');load(true);}catch(e){toast('Error: '+e.message,'err');}
+  const item=items.find(i=>i.id===id);
+  if(!item) return;
+  const s=stock(id);
+  const txnCount=txns.filter(t=>t.item_id===id).length;
+  const ok=await showConfirm({
+    icon:'⚠️',title:'Delete Item Permanently?',
+    sub:'Item and ALL its transaction history will be lost.',
+    theme:'red',
+    items:[{
+      name:item.name,
+      brand:item.brand||'',
+      qty:'Stock: '+s+' '+item.unit,
+      qtyClass:'cfm-qty-del'
+    }],
+    summary:'Category: '+item.category+' | Brand: '+(item.brand||'—')+' | Min: '+item.min_stock+' '+item.unit+'\n'+txnCount+' transaction(s) linked to this item will also be deleted.',
+    okLabel:'🗑 Yes, Delete Item',okClass:'dng'
+  });
+  if(!ok) return;
+  try{await api('DELETE','items?id=eq.'+id);toast('Item deleted','ok');load(true);}catch(e){toast('Error: '+e.message,'err');}
 }
 
 // ── STOCK IN / OUT BRAND → ITEM → COLOUR ────────────────────────
@@ -619,6 +691,42 @@ function itemChange(prefix){
   document.getElementById(prefix+'-clr-box').style.display='none';
 }
 
+// ── RICH CONFIRM ENGINE ──────────────────────────────────────────
+let _cfmResolve=null;
+function cfmResolve(ok){
+  document.getElementById('cfmModal').style.display='none';
+  if(_cfmResolve){_cfmResolve(ok);_cfmResolve=null;}
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('cfmModal').style.display!=='none') cfmResolve(false);
+  if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none') checkPin();
+});
+
+function showConfirm({icon,title,sub,theme,items,summary,okLabel,okClass}){
+  return new Promise(resolve=>{
+    _cfmResolve=resolve;
+    const hdr=document.getElementById('cfmHdr');
+    hdr.className='cfm-hdr '+(theme||'blue');
+    document.getElementById('cfmIcon').textContent=icon||'❓';
+    document.getElementById('cfmTitle').textContent=title||'Are you sure?';
+    document.getElementById('cfmSub').textContent=sub||'';
+    // Items list
+    const itemsEl=document.getElementById('cfmItems');
+    itemsEl.innerHTML=(items||[]).map(r=>`
+      <div class="cfm-item-row">
+        <div><div class="cfm-item-name">${r.name}</div>${r.brand?'<div class="cfm-item-brand">'+r.brand+'</div>':''}</div>
+        <span class="cfm-item-qty ${r.qtyClass||''}">${r.qty}</span>
+      </div>`).join('');
+    const sumEl=document.getElementById('cfmSummary');
+    if(summary){sumEl.style.display='block';sumEl.textContent=summary;}
+    else sumEl.style.display='none';
+    const okBtn=document.getElementById('cfmOkBtn');
+    okBtn.textContent=okLabel||'Confirm';
+    okBtn.className='btn '+(okClass||'primary');
+    document.getElementById('cfmModal').style.display='flex';
+  });
+}
+
 // ── QUEUE ────────────────────────────────────────────────────────
 function addToQueue(prefix){
   const itemId=prefix==='si'?siSelItemId:soSelItemId;
@@ -627,10 +735,11 @@ function addToQueue(prefix){
   if(!qty||qty<=0){toast('Enter quantity','err');return;}
   const item=items.find(i=>i.id===itemId);
   if(!item) return;
-  if(prefix==='so'&&qty>stock(itemId)){toast('Not enough stock! Available: '+stock(itemId),'err');return;}
+  const curStock=stock(itemId);
+  if(prefix==='so'&&qty>curStock){toast('Not enough stock! Available: '+curStock,'err');return;}
   const q=prefix==='si'?siQueue:soQueue;
   const ex=q.find(x=>x.itemId===itemId);
-  if(ex){ex.qty+=qty;toast('Qty updated! ✓','ok');}
+  if(ex){ex.qty+=qty;toast('Qty updated in queue! ✓','ok');}
   else{q.push({itemId,qty,name:item.name,brand:item.brand||'',unit:item.unit});toast('Added to queue! ✓','ok');}
   document.getElementById(prefix+'-qty').value='';
   document.getElementById(prefix+'-qty').focus();
@@ -664,13 +773,33 @@ function renderQ(prefix){
   wrap.innerHTML=''; wrap.appendChild(tbl);
 }
 
-function removeQ(prefix,idx){
+async function removeQ(prefix,idx){
+  const q=prefix==='si'?siQueue:soQueue;
+  const x=q[idx];
+  const ok=await showConfirm({
+    icon:'🗑️',title:'Remove from Queue?',
+    sub:'This item will be removed from the pending list.',
+    theme:'red',
+    items:[{name:x.name,brand:x.brand,qty:(prefix==='si'?'+':'-')+x.qty+' '+x.unit,qtyClass:prefix==='si'?'cfm-qty-in':'cfm-qty-out'}],
+    okLabel:'Yes, Remove',okClass:'dng'
+  });
+  if(!ok) return;
   if(prefix==='si') siQueue.splice(idx,1); else soQueue.splice(idx,1);
   renderQ(prefix);
 }
 
-function clearQ(prefix){
-  if(!confirm('Clear all items from queue?')) return;
+async function clearQ(prefix){
+  const q=prefix==='si'?siQueue:soQueue;
+  if(!q.length) return;
+  const ok=await showConfirm({
+    icon:'🗑️',title:'Clear Entire Queue?',
+    sub:'ALL items below will be removed. Nothing will be saved.',
+    theme:'red',
+    items:q.map(x=>({name:x.name,brand:x.brand,qty:(prefix==='si'?'+':'-')+x.qty+' '+x.unit,qtyClass:prefix==='si'?'cfm-qty-in':'cfm-qty-out'})),
+    summary:'Total '+q.length+' item(s) will be cleared.',
+    okLabel:'Yes, Clear All',okClass:'dng'
+  });
+  if(!ok) return;
   if(prefix==='si') siQueue=[]; else soQueue=[];
   renderQ(prefix);
 }
@@ -686,14 +815,25 @@ async function submitQ(prefix){
   if(prefix==='so'){
     for(const x of q){if(x.qty>stock(x.itemId)){toast('Not enough stock: '+x.name+' (Have: '+stock(x.itemId)+')','err');return;}}
   }
+  const isIn=prefix==='si';
+  const ok=await showConfirm({
+    icon:isIn?'📦':'🚚',
+    title:'Confirm Submit — Stock '+(isIn?'IN':'OUT'),
+    sub:(isIn?'Supplier: ':'Customer: ')+party+(note?' | '+(isIn?'Invoice':'Bill')+': '+note:'')+' | Date: '+date,
+    theme:isIn?'green':'orange',
+    items:q.map(x=>({name:x.name,brand:x.brand,qty:(isIn?'+':'-')+x.qty+' '+x.unit,qtyClass:isIn?'cfm-qty-in':'cfm-qty-out'})),
+    summary:'Total '+q.length+' item(s) will be recorded as Stock '+(isIn?'IN':'OUT')+'. This will update stock levels immediately.',
+    okLabel:'✅ Yes, Submit',okClass:isIn?'primary':'orange'
+  });
+  if(!ok) return;
   try{
     for(const x of q){
-      const txn={item_id:x.itemId,type:prefix==='si'?'IN':'OUT',qty:x.qty,date,note};
-      if(prefix==='si') txn.supplier=party; else txn.customer=party;
+      const txn={item_id:x.itemId,type:isIn?'IN':'OUT',qty:x.qty,date,note};
+      if(isIn) txn.supplier=party; else txn.customer=party;
       await api('POST','transactions',txn);
     }
     const cnt=q.length;
-    if(prefix==='si'){siQueue=[];document.getElementById('si-sup').value='';document.getElementById('si-note').value='';}
+    if(isIn){siQueue=[];document.getElementById('si-sup').value='';document.getElementById('si-note').value='';}
     else{soQueue=[];document.getElementById('so-cust').value='';document.getElementById('so-note').value='';}
     renderQ(prefix);
     toast(cnt+' items submitted! 🎉','ok');
@@ -766,9 +906,25 @@ async function saveEditTxn(){
   const note=document.getElementById('etxn-note').value.trim();
   const update={qty,date,note};
   if(t.type==='IN') update.supplier=party; else update.customer=party;
+  const it=items.find(i=>i.id===t.item_id);
+  // Close edit modal first, then show confirm
+  document.getElementById('editTxnModal').style.display='none';
+  const ok=await showConfirm({
+    icon:'✏️',title:'Confirm Edit Transaction',
+    sub:(t.type==='IN'?'Supplier: ':'Customer: ')+(party||'—')+(note?' | '+(t.type==='IN'?'Invoice':'Bill')+': '+note:'')+' | Date: '+date,
+    theme:'blue',
+    items:[{
+      name:(it?it.name:'?'),
+      brand:it?it.brand||'':'' ,
+      qty:(t.type==='IN'?'+':'-')+qty+' '+(it?it.unit:''),
+      qtyClass:'cfm-qty-edit'
+    }],
+    summary:'Original qty was '+(t.type==='IN'?'+':'-')+t.qty+(t.qty!==qty?' → now '+(t.type==='IN'?'+':'-')+qty:'  (unchanged)')+'. Stock levels will be recalculated.',
+    okLabel:'✅ Save Changes',okClass:'primary'
+  });
+  if(!ok){document.getElementById('editTxnModal').style.display='flex';return;}
   try{
     await api('PATCH','transactions?id=eq.'+editingTxnId,update);
-    document.getElementById('editTxnModal').style.display='none';
     editingTxnId=null;
     toast('Transaction updated! ✓','ok');
     load(true);
@@ -778,8 +934,20 @@ async function saveEditTxn(){
 async function deleteTxn(id){
   const t=txns.find(x=>x.id===id);
   const it=t?items.find(i=>i.id===t.item_id):null;
-  const label=it?it.name:'this transaction';
-  if(!confirm('DELETE '+label+' ('+( t?(t.type==='IN'?'+':'-')+t.qty:'')+')?  This will affect stock levels. Are you sure?')) return;
+  const ok=await showConfirm({
+    icon:'⚠️',title:'Delete Transaction?',
+    sub:'This cannot be undone. Stock levels will be reversed.',
+    theme:'red',
+    items:[{
+      name:it?it.name:'Unknown Item',
+      brand:it?it.brand||'':'',
+      qty:(t?(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:''):'?'),
+      qtyClass:'cfm-qty-del'
+    }],
+    summary:(t?'Recorded on '+t.date+' | '+(t.type==='IN'?'Supplier: '+(t.supplier||'—'):'Customer: '+(t.customer||'—'))+(t.note?' | Ref: '+t.note:''):'')+'\n⚠ Deleting this will affect current stock balance.',
+    okLabel:'🗑 Yes, Delete',okClass:'dng'
+  });
+  if(!ok) return;
   try{
     await api('DELETE','transactions?id=eq.'+id);
     toast('Transaction deleted','ok');
