@@ -267,10 +267,11 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 <div id="page-history" class="page">
   <div class="card">
     <div class="card-title">Transaction History</div>
-    <div class="sbar">
-      <select id="h-item" onchange="renderHistory()"><option value="">All Items</option></select>
-      <select id="h-type" onchange="renderHistory()"><option value="">All Types</option><option value="IN">IN</option><option value="OUT">OUT</option></select>
-      <input type="date" id="h-date" onchange="renderHistory()" style="max-width:160px;flex:none"/>
+    <div class="sbar" style="flex-wrap:wrap;gap:8px">
+      <input id="h-search" placeholder="🔍 Search item name or brand..." oninput="renderHistory()" style="flex:2;min-width:180px;margin-bottom:0"/>
+      <select id="h-brand" onchange="renderHistory()" style="flex:1;min-width:130px;margin-bottom:0"><option value="">All Brands</option></select>
+      <select id="h-type" onchange="renderHistory()" style="flex:0 0 90px;margin-bottom:0"><option value="">All Types</option><option value="IN">IN</option><option value="OUT">OUT</option></select>
+      <input type="date" id="h-date" onchange="renderHistory()" style="max-width:150px;flex:none;margin-bottom:0"/>
       <button class="btn sm" onclick="clearHF()">Clear</button>
     </div>
     <div class="tw" id="histTable"><div class="loading">Loading...</div></div>
@@ -515,15 +516,11 @@ async function delItem(id){
 // ── STOCK IN / OUT BRAND → ITEM → COLOUR ────────────────────────
 function fillBrands(){
   const brands=[...new Set(items.map(i=>i.brand||'Unknown Brand'))].sort();
-  ['si-brand','so-brand','h-item'].forEach(id=>{
+  ['si-brand','so-brand','h-brand'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     const prev=el.value;
-    el.innerHTML=id==='h-item'?'<option value="">All Items</option>':'<option value="">-- All Brands --</option>';
-    if(id==='h-item'){
-      items.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=(i.brand?'['+i.brand+'] ':'')+i.name;el.appendChild(o);});
-    } else {
-      brands.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;el.appendChild(o);});
-    }
+    el.innerHTML='<option value="">-- All Brands --</option>';
+    brands.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;el.appendChild(o);});
     if(prev) el.value=prev;
   });
 }
@@ -687,13 +684,20 @@ async function submitQ(prefix){
 }
 
 // ── RECENT SI / SO ───────────────────────────────────────────────
+
+function fmtDT(dtStr){
+  if(!dtStr) return '—';
+  const d=new Date(dtStr);
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+
+         d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+}
 function renderSI(){
   const el=document.getElementById('siTable');
   const list=txns.filter(t=>t.type==='IN').slice(0,30);
   if(!list.length){el.innerHTML='<div class="empty">No records yet.</div>';return;}
-  el.innerHTML='<table><thead><tr><th>Date</th><th>Item</th><th>Brand</th><th>Qty</th><th>Supplier</th><th>Note</th></tr></thead><tbody>'+
+  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Supplier</th><th>Note</th></tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id);
-      return '<tr><td>'+t.date+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#2e7d32;font-weight:700">+'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.supplier||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
+      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#2e7d32;font-weight:700">+'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.supplier||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
     }).join('')+'</tbody></table>';
 }
 
@@ -701,29 +705,31 @@ function renderSO(){
   const el=document.getElementById('soTable');
   const list=txns.filter(t=>t.type==='OUT').slice(0,30);
   if(!list.length){el.innerHTML='<div class="empty">No records yet.</div>';return;}
-  el.innerHTML='<table><thead><tr><th>Date</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Note</th></tr></thead><tbody>'+
+  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Note</th></tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id);
-      return '<tr><td>'+t.date+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
+      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
     }).join('')+'</tbody></table>';
 }
 
 // ── HISTORY ──────────────────────────────────────────────────────
 function renderHistory(){
   const el=document.getElementById('histTable');
-  const iF=document.getElementById('h-item')?.value||'';
+  const sF=(document.getElementById('h-search')?.value||'').toLowerCase();
+  const bF=document.getElementById('h-brand')?.value||'';
   const tF=document.getElementById('h-type')?.value||'';
   const dF=document.getElementById('h-date')?.value||'';
   let list=[...txns];
-  if(iF) list=list.filter(t=>t.item_id===iF);
+  if(sF) list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.name.toLowerCase().includes(sF)||(it.brand||'').toLowerCase().includes(sF));});
+  if(bF) list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.brand||'Unknown Brand')===bF;});
   if(tF) list=list.filter(t=>t.type===tF);
   if(dF) list=list.filter(t=>t.date===dF);
   if(!list.length){el.innerHTML='<div class="empty">No transactions match filter.</div>';return;}
-  el.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note</th></tr></thead><tbody>'+
+  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note</th></tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id),p=t.type==='IN'?(t.supplier||'—'):(t.customer||'—');
-      return '<tr><td>'+t.date+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td>'+p+'</td><td>'+(t.note||'—')+'</td></tr>';
+      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td>'+p+'</td><td>'+(t.note||'—')+'</td></tr>';
     }).join('')+'</tbody></table>';
 }
-function clearHF(){document.getElementById('h-item').value='';document.getElementById('h-type').value='';document.getElementById('h-date').value='';renderHistory();}
+function clearHF(){document.getElementById('h-search').value='';document.getElementById('h-brand').value='';document.getElementById('h-type').value='';document.getElementById('h-date').value='';renderHistory();}
 
 // ── ALERTS ───────────────────────────────────────────────────────
 function renderAlerts(){
