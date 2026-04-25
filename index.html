@@ -1175,9 +1175,9 @@ async function submitQ(prefix){
     for(const x of q){
       const txn={item_id:x.itemId,type:isIn?'IN':'OUT',qty:x.qty,date,note};
       if(isIn) txn.supplier=party; else txn.customer=party;
-      // operator field not in DB schema — stored in note/UI only
+      // operator not in DB schema — skipped
       if(rate) txn.rate=rate;
-      if(refFiles.length) txn.ref_files=refFiles;
+      // ref_files not in DB schema — skipped
       await api('POST','transactions',txn);
     }
     const cnt=q.length;
