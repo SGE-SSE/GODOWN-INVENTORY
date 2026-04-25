@@ -106,6 +106,24 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
 </div>
 
+<!-- EDIT TRANSACTION MODAL -->
+<div id="editTxnModal" class="modal-bg" style="display:none">
+  <div class="modal" style="min-width:340px;text-align:left">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px" id="editTxnTitle">Edit Transaction</div>
+    <div style="font-size:12px;color:#888;margin-bottom:16px" id="editTxnSubtitle"></div>
+    <div class="frow c2" style="margin-bottom:12px">
+      <div class="fg"><label>Quantity</label><input type="number" id="etxn-qty" min="1" style=""/></div>
+      <div class="fg"><label>Bill Date</label><input type="date" id="etxn-date" style=""/></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label id="etxn-party-label">Supplier</label><input id="etxn-party" placeholder=""/></div>
+    <div class="fg" style="margin-bottom:16px"><label id="etxn-note-label">Invoice No</label><input id="etxn-note" placeholder=""/></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="saveEditTxn()" class="btn primary">Save Changes</button>
+      <button onclick="document.getElementById('editTxnModal').style.display='none'" class="btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Location bar -->
 <div class="loc-bar">
   <button class="loc-btn active" id="locBtn-GODOWN" onclick="switchLoc('GODOWN')">🏭 Godown</button>
@@ -695,9 +713,9 @@ function renderSI(){
   const el=document.getElementById('siTable');
   const list=txns.filter(t=>t.type==='IN').slice(0,30);
   if(!list.length){el.innerHTML='<div class="empty">No records yet.</div>';return;}
-  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Supplier</th><th>Note</th></tr></thead><tbody>'+
+  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Supplier</th><th>Note</th>'+(isAdmin?'<th>Actions</th>':'')+'</tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id);
-      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#2e7d32;font-weight:700">+'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.supplier||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
+      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#2e7d32;font-weight:700">+'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.supplier||'—')+'</td><td>'+(t.note||'—')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm primary" onclick="openEditTxn(\''+t.id+'\',\'IN\')" style="margin-right:4px">✏ Edit</button><button class="btn sm dng" onclick="deleteTxn(\''+t.id+'\')">🗑 Del</button></td>':'')+'</tr>';
     }).join('')+'</tbody></table>';
 }
 
@@ -705,10 +723,68 @@ function renderSO(){
   const el=document.getElementById('soTable');
   const list=txns.filter(t=>t.type==='OUT').slice(0,30);
   if(!list.length){el.innerHTML='<div class="empty">No records yet.</div>';return;}
-  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Note</th></tr></thead><tbody>'+
+  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Note</th>'+(isAdmin?'<th>Actions</th>':'')+'</tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id);
-      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'—')+'</td><td>'+(t.note||'—')+'</td></tr>';
+      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'—')+'</td><td>'+(t.note||'—')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm primary" onclick="openEditTxn(\''+t.id+'\',\'OUT\')" style="margin-right:4px">✏ Edit</button><button class="btn sm dng" onclick="deleteTxn(\''+t.id+'\')">🗑 Del</button></td>':'')+'</tr>';
     }).join('')+'</tbody></table>';
+}
+
+// ── EDIT / DELETE TRANSACTIONS ────────────────────────────────────
+let editingTxnId=null;
+
+function openEditTxn(id, type){
+  const t=txns.find(x=>x.id===id);
+  if(!t) return;
+  const it=items.find(i=>i.id===t.item_id);
+  editingTxnId=id;
+  document.getElementById('editTxnTitle').textContent=(type==='IN'?'Edit Stock IN':'Edit Stock OUT')+' Transaction';
+  document.getElementById('editTxnSubtitle').textContent=(it?it.name:'?')+' · '+(it?it.brand||'':'');
+  document.getElementById('etxn-qty').value=t.qty;
+  document.getElementById('etxn-date').value=t.date||'';
+  if(type==='IN'){
+    document.getElementById('etxn-party-label').textContent='Supplier';
+    document.getElementById('etxn-party').value=t.supplier||'';
+    document.getElementById('etxn-note-label').textContent='Invoice No';
+  } else {
+    document.getElementById('etxn-party-label').textContent='Customer';
+    document.getElementById('etxn-party').value=t.customer||'';
+    document.getElementById('etxn-note-label').textContent='Bill No';
+  }
+  document.getElementById('etxn-note').value=t.note||'';
+  document.getElementById('editTxnModal').style.display='flex';
+  setTimeout(()=>document.getElementById('etxn-qty').focus(),100);
+}
+
+async function saveEditTxn(){
+  if(!editingTxnId) return;
+  const t=txns.find(x=>x.id===editingTxnId);
+  if(!t) return;
+  const qty=parseFloat(document.getElementById('etxn-qty').value);
+  if(!qty||qty<=0){toast('Enter valid quantity','err');return;}
+  const date=document.getElementById('etxn-date').value||today();
+  const party=document.getElementById('etxn-party').value.trim();
+  const note=document.getElementById('etxn-note').value.trim();
+  const update={qty,date,note};
+  if(t.type==='IN') update.supplier=party; else update.customer=party;
+  try{
+    await api('PATCH','transactions?id=eq.'+editingTxnId,update);
+    document.getElementById('editTxnModal').style.display='none';
+    editingTxnId=null;
+    toast('Transaction updated! ✓','ok');
+    load(true);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+async function deleteTxn(id){
+  const t=txns.find(x=>x.id===id);
+  const it=t?items.find(i=>i.id===t.item_id):null;
+  const label=it?it.name:'this transaction';
+  if(!confirm('DELETE '+label+' ('+( t?(t.type==='IN'?'+':'-')+t.qty:'')+')?  This will affect stock levels. Are you sure?')) return;
+  try{
+    await api('DELETE','transactions?id=eq.'+id);
+    toast('Transaction deleted','ok');
+    load(true);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 
 // ── HISTORY ──────────────────────────────────────────────────────
@@ -724,9 +800,9 @@ function renderHistory(){
   if(tF) list=list.filter(t=>t.type===tF);
   if(dF) list=list.filter(t=>t.date===dF);
   if(!list.length){el.innerHTML='<div class="empty">No transactions match filter.</div>';return;}
-  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note</th></tr></thead><tbody>'+
+  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note</th>'+(isAdmin?'<th>Actions</th>':'')+'</tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id),p=t.type==='IN'?(t.supplier||'—'):(t.customer||'—');
-      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td>'+p+'</td><td>'+(t.note||'—')+'</td></tr>';
+      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'—':'—')+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td>'+p+'</td><td>'+(t.note||'—')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm primary" onclick="openEditTxn(\''+t.id+'\',\''+t.type+'\')" style="margin-right:4px">✏</button><button class="btn sm dng" onclick="deleteTxn(\''+t.id+'\')">🗑</button></td>':'')+'</tr>';
     }).join('')+'</tbody></table>';
 }
 function clearHF(){document.getElementById('h-search').value='';document.getElementById('h-brand').value='';document.getElementById('h-type').value='';document.getElementById('h-date').value='';renderHistory();}
