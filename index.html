@@ -1177,7 +1177,7 @@ async function submitQ(prefix){
       if(isIn) txn.supplier=party; else txn.customer=party;
       // operator not in DB schema — skipped
       if(rate) txn.rate=rate;
-      if(refFiles.length) txn.ref_files=refFiles;
+      // ref_files not in DB schema — skipped
       await api('POST','transactions',txn);
     }
     const cnt=q.length;
