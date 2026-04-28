@@ -723,7 +723,7 @@ async function load(silent){
   if(!silent) sync('Syncing...');
   try{
     const allItems=await api('GET','items?select=*&order=name');
-    const allTxns=await api('GET','transactions?select=*&order=created_at.desc&limit=300');
+    const allTxns=await api('GET','transactions?select=*&order=created_at.desc');
     items=allItems.filter(i=>(i.location||'GODOWN')===currentLoc);
     const ids=new Set(items.map(i=>i.id));
     txns=allTxns.filter(t=>ids.has(t.item_id));
@@ -1177,7 +1177,7 @@ async function submitQ(prefix){
       if(isIn) txn.supplier=party; else txn.customer=party;
       // operator not in DB schema — skipped
       if(rate) txn.rate=rate;
-      if(refFiles.length) txn.ref_files=refFiles;
+      // ref_files not in DB schema — skipped
       await api('POST','transactions',txn);
     }
     const cnt=q.length;
@@ -1802,6 +1802,11 @@ function go(name,btn){
 document.getElementById('si-date').value=today();
 document.getElementById('so-date').value=today();
 load();
+setInterval(()=>{
+  const hasQ=(siQueue.length>0)||(soQueue.length>0);
+  const hasData=!!(document.getElementById('si-sup').value||document.getElementById('so-cust').value);
+  load(hasQ||hasData);
+},30000);
 </script>
 </body>
 </html>
