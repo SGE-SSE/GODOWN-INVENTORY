@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Inventory Test</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<h2>🧪 Inventory Parallel Test</h2>
+
+<div id="data">Loading...</div>
+
+<script>
+
+// 🔴 FIXED HERE
+const SUPA_URL = "https://ibawonlchzxmocokkirz.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImliYXdvbmxjaHp4bW9jb3hraXJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MjEzMTcsImV4cCI6MjA5MTM5NzMxN30._1lyNMpU_dXFpdjVkDy1gKfyA-Qt7eSl9mULyYLfGvA";
+
+// ✅ DO NOT CHANGE BELOW
+const supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+async function load(){
+  const { data, error } = await supabase
+    .from('item_stock_view_v2')
+    .select('*')
+    .order('name');
+
+  if(error){
+    document.getElementById("data").innerHTML = "Error: " + error.message;
+    return;
+  }
+
+  if(!data || data.length === 0){
+    document.getElementById("data").innerHTML = "No data found";
+    return;
+  }
+
+  document.getElementById("data").innerHTML =
+    data.map(i => `
+      <div style="padding:10px;border-bottom:1px solid #ccc">
+        <b>${i.name}</b><br>
+        Stock: ${i.stock} ${i.unit || ''}
+        ${i.stock <= i.min_stock ? " ⚠️ LOW" : ""}
+      </div>
+    `).join('');
+}
+
+// 🔥 REAL-TIME
+supabase.channel('live')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'transactions'
+  }, () => {
+    load();
+  })
+  .subscribe();
+
+load();
+
+</script>
+
+</body>
+</html>
