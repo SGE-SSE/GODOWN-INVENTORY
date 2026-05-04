@@ -147,6 +147,8 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('history',this)">History</button>
   <button onclick="go('alerts',this)" id="alertsTab">Alerts</button>
   <button onclick="go('transfer',this)">🔄 Transfer</button>
+  <button onclick="go('fastmoving',this)">🔥 Fast Moving</button>
+  <button onclick="go('fastmoving',this)">🔥 Fast Moving</button>
   <button onclick="go('reports',this)">📊 Reports</button>
 </nav>
 
@@ -160,24 +162,6 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="metric"><div class="ml">Today IN</div><div class="mv success" id="m-in">--</div></div>
     <div class="metric"><div class="ml">Today OUT (Items)</div><div class="mv" id="m-out">--</div></div>
   </div>
-  <div class="card" style="padding:12px 18px;margin-bottom:0">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:600;color:#e65100">🔥 Fast Moving Stock</span>
-      <select id="fm-period" onchange="renderFastMoving()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:20px;border:1px solid #ddd;margin-bottom:0">
-        <option value="today">Today</option>
-        <option value="7">Last 7 Days</option>
-        <option value="15">Last 15 Days</option>
-        <option value="30">Last 30 Days</option>
-        <option value="custom">Custom Range</option>
-      </select>
-      <div id="fm-custom" style="display:none;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input type="date" id="fm-from" onchange="renderFastMoving()" style="width:auto;padding:5px 8px;font-size:12px;margin-bottom:0"/>
-        <span style="font-size:12px;color:#555">to</span>
-        <input type="date" id="fm-to" onchange="renderFastMoving()" style="width:auto;padding:5px 8px;font-size:12px;margin-bottom:0"/>
-      </div>
-    </div>
-  </div>
-  <div id="fastMoving" style="display:none"></div>
   <div id="dashAlerts"></div>
   <div class="card" id="wireCard" style="display:none">
     <div class="card-title">🔌 Wire Stock Overview</div>
@@ -490,6 +474,50 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     </div>
   </div>
 </div>
+
+<!-- FAST MOVING -->
+<div id="page-fastmoving" class="page">
+  <div class="card" style="padding:12px 18px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:15px;font-weight:600;color:#e65100">🔥 Fast Moving Stock</span>
+      <select id="fm-period" onchange="renderFastMoving()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:20px;border:1px solid #ddd;margin-bottom:0">
+        <option value="today">Today</option>
+        <option value="7">Last 7 Days</option>
+        <option value="15">Last 15 Days</option>
+        <option value="30">Last 30 Days</option>
+        <option value="custom">Custom Range</option>
+      </select>
+      <div id="fm-custom" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="fm-from" onchange="renderFastMoving()" style="width:auto;padding:5px 8px;font-size:12px;margin-bottom:0"/>
+        <span style="font-size:12px;color:#555">to</span>
+        <input type="date" id="fm-to" onchange="renderFastMoving()" style="width:auto;padding:5px 8px;font-size:12px;margin-bottom:0"/>
+      </div>
+    </div>
+  </div>
+  <div id="fastMoving"></div>
+</div>
+
+<!-- FAST MOVING -->
+<div id="page-fastmoving" class="page">
+  <div class="card" style="padding:14px 18px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:15px;font-weight:700;color:#e65100">🔥 Fast Moving Stock</span>
+      <select id="fm-period" onchange="renderFastMoving()" style="width:auto;padding:6px 12px;font-size:13px;border-radius:20px;border:1px solid #ddd;margin-bottom:0">
+        <option value="today">Today</option>
+        <option value="7">Last 7 Days</option>
+        <option value="15">Last 15 Days</option>
+        <option value="30">Last 30 Days</option>
+        <option value="custom">Custom Range</option>
+      </select>
+      <div id="fm-custom" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="fm-from" onchange="renderFastMoving()" style="width:auto;padding:6px 8px;font-size:13px;margin-bottom:0"/>
+        <span style="font-size:12px;color:#555">to</span>
+        <input type="date" id="fm-to" onchange="renderFastMoving()" style="width:auto;padding:6px 8px;font-size:13px;margin-bottom:0"/>
+      </div>
+    </div>
+  </div>
+  <div id="fastMoving"></div>
+</div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -569,7 +597,6 @@ function renderDash(){
   document.getElementById('m-low').textContent=low.length;
   document.getElementById('m-in').textContent=tIn;
   document.getElementById('m-out').textContent=tOut;
-  renderFastMoving();
   const da=document.getElementById('dashAlerts');
   da.innerHTML=low.length?'<div class="card" style="border-left:4px solid #c62828"><div class="card-title" style="color:#c62828">⚠ Low Stock ('+low.length+')</div>'+low.map(i=>'<div class="arow"><div><div class="aname">'+i.name+'</div><div class="adetail">'+i.category+' · '+(i.brand||'--')+'</div></div><div class="apill">Stock: '+stock(i.id)+' | Min: '+i.min_stock+'</div></div>').join('')+'</div>':'';
   const wireItems=items.filter(isWire);
@@ -944,7 +971,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='fastmoving'){renderFastMoving();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
@@ -1052,56 +1079,75 @@ function renderFastMoving(){
   const period=document.getElementById('fm-period')?.value||'today';
   const customDiv=document.getElementById('fm-custom');
   if(customDiv) customDiv.style.display=period==='custom'?'flex':'none';
-
   const td=today();
-  let fromDate='', toDate=td;
-
-  if(period==='today'){
-    fromDate=td;
-  } else if(period==='custom'){
-    fromDate=document.getElementById('fm-from')?.value||td;
-    toDate=document.getElementById('fm-to')?.value||td;
-  } else {
-    const days=parseInt(period);
-    const d=new Date();d.setDate(d.getDate()-days);
-    fromDate=d.toISOString().split('T')[0];
-  }
+  let fromDate='',toDate=td;
+  if(period==='today'){fromDate=td;}
+  else if(period==='custom'){fromDate=document.getElementById('fm-from')?.value||td;toDate=document.getElementById('fm-to')?.value||td;}
+  else{const days=parseInt(period);const d=new Date();d.setDate(d.getDate()-days);fromDate=d.toISOString().split('T')[0];}
 
   const filtered=txns.filter(t=>t.type==='OUT'&&t.date>=fromDate&&t.date<=toDate);
   const outByItem={};
   filtered.forEach(t=>{outByItem[t.item_id]=(outByItem[t.item_id]||0)+t.qty;});
-  const fastMoving=Object.entries(outByItem).sort((a,b)=>b[1]-a[1]).slice(0,10);
 
   const fmEl=document.getElementById('fastMoving');
   if(!fmEl) return;
-  if(!fastMoving.length){
+  if(!Object.keys(outByItem).length){
     fmEl.innerHTML='<div class="card" style="border-left:4px solid #e65100"><div style="font-size:13px;color:#999;padding:4px 0">No stock movement in selected period.</div></div>';
     fmEl.style.display='block';return;
   }
 
+  // Group by category
+  const byCat={};
+  Object.entries(outByItem).forEach(([id,qty])=>{
+    const it=items.find(i=>i.id===id);
+    const cat=it?it.category||'Other':'Other';
+    if(!byCat[cat]) byCat[cat]=[];
+    byCat[cat].push({id,qty,it});
+  });
+  // Sort items within each category by qty desc
+  Object.keys(byCat).forEach(cat=>{byCat[cat].sort((a,b)=>b.qty-a.qty);});
+
   const label=period==='today'?'Today':period==='custom'?fromDate+' to '+toDate:'Last '+period+' Days';
-  fmEl.innerHTML='<div class="card" style="border-left:4px solid #e65100;margin-top:0">'
-    +'<div style="font-size:13px;font-weight:600;color:#e65100;margin-bottom:10px">Top '+fastMoving.length+' Moving Items — '+label+'</div>'
-    +'<table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>'
-    +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:left">#</th>'
-    +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:left">Item</th>'
-    +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:left">Brand</th>'
-    +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:center">Total OUT</th>'
-    +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:center">Current Stock</th>'
-    +'</tr></thead><tbody>'
-    +fastMoving.map(([id,qty],idx)=>{
-      const it=items.find(i=>i.id===id);
+  const totalOut=Object.values(outByItem).reduce((s,v)=>s+v,0);
+  const totalCats=Object.keys(byCat).length;
+
+  let html2='<div class="card" style="border-left:4px solid #e65100;margin-top:0">';
+  html2+='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px">';
+  html2+='<div style="font-size:13px;font-weight:600;color:#e65100">🔥 Fast Moving — '+label+'</div>';
+  html2+='<div style="font-size:12px;color:#666">'+totalCats+' categories · '+Object.keys(outByItem).length+' items · <strong style="color:#e65100">'+totalOut+' total OUT</strong></div>';
+  html2+='</div>';
+
+  Object.keys(byCat).sort().forEach(cat=>{
+    const catItems=byCat[cat];
+    const catTotal=catItems.reduce((s,x)=>s+x.qty,0);
+    // Category header
+    html2+='<div style="font-size:13px;font-weight:700;color:#185FA5;padding:7px 12px;background:#e8f0fb;border-radius:6px;border-left:4px solid #185FA5;margin-bottom:6px;display:flex;justify-content:space-between;">';
+    html2+='<span>📂 '+cat+'</span><span style="font-size:12px;font-weight:500;color:#555">Total OUT: <strong style="color:#e65100">'+catTotal+'</strong></span>';
+    html2+='</div>';
+    // Items table for this category
+    html2+='<table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:12px">';
+    html2+='<thead><tr>'
+      +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:left">#</th>'
+      +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:left">Item</th>'
+      +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:left">Brand</th>'
+      +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:center">OUT Qty</th>'
+      +'<th style="background:#fff8f0;padding:7px 10px;border-bottom:1px solid #f0e0d0;text-align:center">Stock Left</th>'
+      +'</tr></thead><tbody>';
+    catItems.forEach(({id,qty,it},idx)=>{
       const cur=stock(id);
-      const low=cur<=( it?it.min_stock:0)&&(it?it.min_stock:0)>0;
-      return '<tr style="background:'+(idx%2===0?'#fff':'#fff8f5')+'">'
+      const low=it&&cur<=it.min_stock&&it.min_stock>0;
+      html2+='<tr style="background:'+(idx%2===0?'#fff':'#fff8f5')+'">'
         +'<td style="padding:7px 10px;font-weight:700;color:#e65100">'+(idx+1)+'</td>'
         +'<td style="padding:7px 10px;font-weight:600">'+(it?it.name:'?')+'</td>'
-        +'<td style="padding:7px 10px;color:#185FA5;font-size:12px">'+(it?it.brand||'—':'—')+'</td>'
-        +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#e65100">-'+qty+' '+(it?it.unit:'')+'</td>'
+        +'<td style="padding:7px 10px;color:#185FA5;font-size:12px">'+(it?it.brand||'--':'--')+'</td>'
+        +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#e65100">'+qty+' '+(it?it.unit:'')+'</td>'
         +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:'+(low?'#c62828':'#2e7d32')+'">'+cur+' '+(it?it.unit:'')+(low?' ⚠':'')+'</td>'
         +'</tr>';
-    }).join('')
-    +'</tbody></table></div>';
+    });
+    html2+='</tbody></table>';
+  });
+  html2+='</div>';
+  fmEl.innerHTML=html2;
   fmEl.style.display='block';
 }
 
