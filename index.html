@@ -83,7 +83,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 .recent-filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
 .recent-filter-bar input,.recent-filter-bar select{flex:1;min-width:120px;margin-bottom:0}
 .show-more-bar{text-align:center;padding:10px 0;border-top:1px solid #f0f0f0;margin-top:8px}
-@media print{.topbar,.loc-bar,.nav,.con .btn,.entry-panel,.sbar,.ar,.recent-filter-bar,.show-more-bar{display:none!important}.con{padding:0}.card{box-shadow:none;border:1px solid #ccc}.print-hdr{display:block!important}.page{display:none!important}.page.active{display:block!important}}
+@media print{.topbar,.loc-bar,.nav,.con .btn,.entry-panel,.sbar,.ar,.recent-filter-bar,.show-more-bar{display:none!important}.con{padding:0}.card{box-shadow:none;border:1px solid #ccc}.print-hdr{display:block!important}.page{display:none!important}.page.active{display:block!important}#cs-empty-state{display:none!important}}
 .print-hdr{display:none;text-align:center;margin-bottom:16px;border-bottom:2px solid #185FA5;padding-bottom:10px}
 .print-hdr h2{font-size:18px;font-weight:700;color:#185FA5}
 .print-hdr p{font-size:12px;color:#666;margin-top:4px}
@@ -150,6 +150,9 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('fastmoving',this)">🔥 Fast Moving</button>
   <button onclick="go('fastmoving',this)">🔥 Fast Moving</button>
   <button onclick="go('reports',this)">📊 Reports</button>
+  <button onclick="go('closingstock',this)">📦 Closing Stock</button>
+  <button onclick="go('pipeclosing',this)">🪠 Pipe Stock</button>
+  <button onclick="go('lowstock',this)">⚠ Low Stock</button>
 </nav>
 
 <div class="con">
@@ -166,6 +169,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div class="card" id="wireCard" style="display:none">
     <div class="card-title">🔌 Wire Stock Overview</div>
     <div class="tw" id="dashWireTable"></div>
+  </div>
+  <div class="card" id="pipeCard" style="display:none">
+    <div class="card-title">🪠 Pipe Stock Overview <span style="font-size:11px;font-weight:400;color:#888;margin-left:6px">(Pipes only · Bends &amp; Flexible excluded)</span></div>
+    <div class="tw" id="dashPipeTable"></div>
   </div>
   <div class="card"><div class="card-title">Current Stock Overview</div><div class="tw" id="dashTable"><div class="loading">Loading...</div></div></div>
 </div>
@@ -420,8 +427,115 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     </div>
     <div class="tw" id="rep-detail-table"><div class="loading">Loading...</div></div>
   </div>
+
 </div>
 
+
+<!-- CLOSING STOCK BY BRAND -->
+<div id="page-closingstock" class="page">
+  <div class="print-hdr" id="csPrintHdr"><h2>⚡ SGE-SSE -- Closing Stock Report</h2><p id="csPrintMeta"></p></div>
+  <div class="card" style="border-left:4px solid #185FA5">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+      <div class="card-title" style="margin-bottom:0;color:#185FA5;font-size:16px">📦 Closing Stock by Brand</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn sm primary" onclick="exportClosingStockCSV()">⬇ CSV</button>
+        <button class="btn sm" style="background:#1d6f42;color:#fff;border-color:#1d6f42" onclick="exportClosingStockXLSX()">📊 Excel</button>
+        <button class="btn sm" onclick="printClosingStock()">🖨 Print</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">Select a brand from the dropdown to view its closing stock</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <label style="font-size:13px;font-weight:600;color:#333;white-space:nowrap">Select Brand:</label>
+      <select id="cs-brand" onchange="renderClosingStock()" style="padding:9px 14px;border:2px solid #185FA5;border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a1a;min-width:200px;font-weight:600;margin-bottom:0">
+        <option value="">-- Select a Brand --</option>
+      </select>
+      <span id="cs-item-count" style="font-size:13px;color:#555;font-weight:500"></span>
+    </div>
+  </div>
+
+  <!-- Empty state - shown before brand is selected -->
+  <div id="cs-empty-state" class="card" style="text-align:center;padding:50px 20px;border:2px dashed #ddd">
+    <div style="font-size:40px;margin-bottom:12px">📦</div>
+    <div style="font-size:15px;font-weight:600;color:#555;margin-bottom:6px">Select a Brand to View Closing Stock</div>
+    <div style="font-size:13px;color:#999">Choose a brand from the dropdown above to see its complete closing stock report</div>
+  </div>
+
+  <!-- Results shown after brand selected -->
+  <div id="cs-results" style="display:none">
+    <div id="cs-summary-bar" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tw" id="cs-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PIPE STOCK REPORT — PIPES ONLY, SEPARATE -->
+<div id="page-pipeclosing" class="page">
+  <div class="print-hdr" id="pcPrintHdr"><h2>⚡ SGE-SSE — Pipe Stock Report</h2><p id="pcPrintMeta"></p></div>
+  <div class="card" style="border-left:4px solid #2e7d32">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+      <div class="card-title" style="margin-bottom:0;color:#2e7d32;font-size:16px">🪠 Pipe Stock — Brand Wise</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn sm" style="background:#2e7d32;color:#fff;border-color:#2e7d32" onclick="exportPipeStockCSV()">⬇ CSV</button>
+        <button class="btn sm" style="background:#1d6f42;color:#fff;border-color:#1d6f42" onclick="exportPipeStockXLSX()">📊 Excel</button>
+        <button class="btn sm" onclick="printPipeStock()">🖨 Print</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">Select a brand to view <strong>only pipes</strong> for that brand — bends, flexible pipes and all other items excluded</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <label style="font-size:13px;font-weight:600;color:#333;white-space:nowrap">Select Brand:</label>
+      <select id="pc-brand" onchange="renderPipeStock()" style="padding:9px 14px;border:2px solid #2e7d32;border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a1a;min-width:200px;font-weight:600;margin-bottom:0">
+        <option value="">-- Select a Brand --</option>
+      </select>
+      <span id="pc-item-count" style="font-size:13px;color:#2e7d32;font-weight:600"></span>
+    </div>
+  </div>
+
+  <div id="pc-empty-state" class="card" style="text-align:center;padding:50px 20px;border:2px dashed #c8e6c9">
+    <div style="font-size:40px;margin-bottom:12px">🪠</div>
+    <div style="font-size:15px;font-weight:600;color:#555;margin-bottom:6px">Select a Brand to View Pipe Stock</div>
+    <div style="font-size:13px;color:#999">Only pipes shown — bends, flexible pipes and all other items are excluded</div>
+  </div>
+
+  <div id="pc-results" style="display:none">
+    <div id="pc-summary-bar" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tw" id="pc-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOW STOCK REPORT BY BRAND -->
+<div id="page-lowstock" class="page">
+  <div class="print-hdr" id="lsPrintHdr"><h2>⚡ SGE-SSE -- Low Stock Report</h2><p id="lsPrintMeta"></p></div>
+  <div class="card" style="border-left:4px solid #c62828">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+      <div class="card-title" style="margin-bottom:0;color:#c62828;font-size:16px">⚠ Low Stock Report — Brand Wise</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn sm" style="background:#c62828;color:#fff;border-color:#c62828" onclick="exportLowStockCSV()">⬇ CSV</button>
+        <button class="btn sm" style="background:#1d6f42;color:#fff;border-color:#1d6f42" onclick="exportLowStockXLSX()">📊 Excel</button>
+        <button class="btn sm" onclick="printLowStock()">🖨 Print</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">Select a brand to see only its low stock items, or view all brands at once</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <label style="font-size:13px;font-weight:600;color:#333;white-space:nowrap">Select Brand:</label>
+      <select id="ls-brand" onchange="renderLowStock()" style="padding:9px 14px;border:2px solid #c62828;border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a1a;min-width:200px;font-weight:600;margin-bottom:0">
+        <option value="">-- All Brands --</option>
+      </select>
+      <span id="ls-count-badge" style="font-size:13px;color:#c62828;font-weight:700"></span>
+    </div>
+  </div>
+  <div id="ls-summary-bar" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+  <div id="ls-empty-ok" class="card" style="display:none;text-align:center;padding:40px 20px;border:2px solid #e8f5e9">
+    <div style="font-size:36px;margin-bottom:10px">✅</div>
+    <div style="font-size:15px;font-weight:600;color:#2e7d32;margin-bottom:4px">All items adequately stocked!</div>
+    <div style="font-size:13px;color:#888">No low stock items for selected brand.</div>
+  </div>
+  <div id="ls-results">
+    <div class="tw" id="ls-table"><div class="loading">Loading...</div></div>
+  </div>
+</div>
 
 <!-- TRANSFER -->
 <div id="page-transfer" class="page">
@@ -527,6 +641,10 @@ const SUPA_KEY='sb_publishable_j3BvHCejXy9hOnlB0EpcSw_6nJM5N-l';
 const ADMIN_PIN='220593';
 const WIRE_COLORS=['RED','YELLOW','GREEN','BLUE','BLACK','WHITE','GREY'];
 const CLR_CSS={RED:'background:#e53935;color:#fff',YELLOW:'background:#FDD835;color:#333',GREEN:'background:#7CB342;color:#fff',BLUE:'background:#1E88E5;color:#fff',BLACK:'background:#212121;color:#FF8F00',WHITE:'background:#f5f5f5;color:#333;border:1px solid #ccc',GREY:'background:#9E9E9E;color:#fff'};
+// Pipe sizes — ordered small→large; detection checks name for these tokens
+const PIPE_SIZES=['15MM','20MM','25MM','32MM','40MM','50MM','63MM','75MM','90MM','100MM','110MM','125MM','150MM','160MM','200MM'];
+const PIPE_SIZE_BG=['#e3f2fd','#e8f5e9','#fff8e1','#fce4ec','#f3e5f5','#e0f7fa','#fff3e0','#e8eaf6','#f1f8e9','#fafafa','#e0f2f1','#fbe9e7','#e8f0fb','#f9fbe7','#ede7f6'];
+const PIPE_SIZE_TX=['#0d47a1','#1b5e20','#f57f17','#880e4f','#4a148c','#006064','#e65100','#1a237e','#33691e','#333','#004d40','#bf360c','#0c447c','#558b2f','#311b92'];
 const CATS=['Wires & Cables','Switches & Sockets','MCB & Distribution','Lights & Fixtures','Conduits & Fittings','Fans & Motors','Tools & Equipment','Other'];
 const UNITS=['DRUM','BAG','PKT','NOS','BUN','Meters','Rolls','Boxes','Sets','Kg','Coils'];
 let items=[],txns=[],isAdmin=false,currentLoc='GODOWN';
@@ -575,6 +693,9 @@ function stock(id){
 }
 function isWire(item){const n=(item.name||'').toUpperCase();return n.includes('WIRE')||n.includes('SQMM')||n.includes('CABLE');}
 function baseName(name){let n=name.toUpperCase();WIRE_COLORS.forEach(c=>{n=n.replace(new RegExp('\\s+'+c+'$'),'').trim();});return n;}
+function isPipe(item){const n=(item.name||'').toUpperCase();return n.includes('PIPE')||n.includes('CONDUIT')||n.includes('TUBE')||n.includes('PVC')||n.includes('CPVC')||n.includes('UPVC')||n.includes('GI PIPE')||n.includes('MS PIPE');}
+function getPipeSize(name){const n=(name||'').toUpperCase();return PIPE_SIZES.find(s=>n.includes(s))||null;}
+function pipeBaseName(name){let n=(name||'').toUpperCase();PIPE_SIZES.forEach(s=>{n=n.replace(new RegExp('\\s*'+s.replace('MM','\\s*MM')+'\\s*'),' ').trim();});return n.trim();}
 
 function renderAll(){
   renderDash();renderItems();renderSI();renderSO();renderHistory();renderAlerts();renderReport();fillBrands();alertBadge();
@@ -627,7 +748,70 @@ function renderDash(){
     });
     document.getElementById('dashWireTable').innerHTML=html;
   } else wireCard.style.display='none';
-  const nonWire=items.filter(i=>!isWire(i));
+
+  // ── PIPE LIST (pipes only, no bends) ─────────────────────────────
+  // Only keep items that are PIPES — exclude BEND and FLEXIBLE
+  const pipeItems=items.filter(i=>{const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');});
+  const pipeCard=document.getElementById('pipeCard');
+  if(pipeItems.length){
+    pipeCard.style.display='block';
+    // Group by brand
+    const pipeBrands={};
+    pipeItems.forEach(i=>{const b=i.brand||'Unknown';if(!pipeBrands[b])pipeBrands[b]=[];pipeBrands[b].push(i);});
+
+    let pHtml='';
+    Object.keys(pipeBrands).sort().forEach(brand=>{
+      const bItems=pipeBrands[brand].sort((a,b)=>a.name.localeCompare(b.name));
+      const totalItems=bItems.length;
+      const lowCount=bItems.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).length;
+
+      // Brand header
+      pHtml+='<div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 8px;padding:10px 16px;background:linear-gradient(90deg,#e8f5e9,#f9fbe7);border-radius:8px;border-left:5px solid #2e7d32">'
+        +'<span style="font-size:15px;font-weight:700;color:#1b5e20">🪠 '+brand+'</span>'
+        +'<span style="font-size:12px;color:#555;font-weight:500">'+totalItems+' pipe'+(totalItems!==1?'s':'')
+        +(lowCount?' &nbsp;·&nbsp; <span style="color:#c62828;font-weight:700">⚠ '+lowCount+' low</span>':'')+'</span>'
+        +'</div>';
+
+      // Simple flat list table — one row per pipe
+      pHtml+='<div style="overflow-x:auto;margin-bottom:6px">'
+        +'<table style="border-collapse:collapse;width:100%;font-size:13px">'
+        +'<thead><tr>'
+        +'<th style="background:#2e7d32;color:#fff;padding:9px 16px;text-align:left;border:1px solid #388e3c;font-weight:600">Pipe Name</th>'
+        +'<th style="background:#2e7d32;color:#fff;padding:9px 16px;text-align:center;border:1px solid #388e3c;min-width:90px;font-weight:600">Stock</th>'
+        +'<th style="background:#2e7d32;color:#fff;padding:9px 16px;text-align:center;border:1px solid #388e3c;min-width:65px;font-weight:600">Unit</th>'
+        +'<th style="background:#2e7d32;color:#fff;padding:9px 16px;text-align:center;border:1px solid #388e3c;min-width:70px;font-weight:600">Min</th>'
+        +'<th style="background:#2e7d32;color:#fff;padding:9px 16px;text-align:center;border:1px solid #388e3c;min-width:80px;font-weight:600">Status</th>'
+        +'</tr></thead><tbody>';
+
+      bItems.forEach((i,idx)=>{
+        const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+        const rowBg=low?'#fff8f8':(idx%2===0?'#ffffff':'#f1f8e9');
+        pHtml+='<tr style="background:'+rowBg+'">'
+          // Pipe name — bold, dark green
+          +'<td style="padding:10px 16px;border:1px solid #dcedc8;font-weight:600;color:#1b5e20;font-size:13px">'+i.name+'</td>'
+          // Stock number — large and bold, red if low
+          +'<td style="padding:10px 16px;border:1px solid #dcedc8;text-align:center">'
+            +'<span style="font-size:20px;font-weight:800;color:'+(low?'#c62828':'#2e7d32')+'">'+(low&&s===0?'0':s)+'</span>'
+          +'</td>'
+          // Unit
+          +'<td style="padding:10px 16px;border:1px solid #dcedc8;text-align:center;font-size:12px;color:#555">'+i.unit+'</td>'
+          // Min stock
+          +'<td style="padding:10px 16px;border:1px solid #dcedc8;text-align:center;font-size:12px;color:#888">'+i.min_stock+'</td>'
+          // Status badge
+          +'<td style="padding:10px 16px;border:1px solid #dcedc8;text-align:center">'
+            +'<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;'
+              +(low?'background:#ffebee;color:#c62828':'background:#e8f5e9;color:#2e7d32')+'">'
+              +(low?'⚠ LOW':'✓ OK')
+            +'</span>'
+          +'</td>'
+          +'</tr>';
+      });
+
+      pHtml+='</tbody></table></div>';
+    });
+    document.getElementById('dashPipeTable').innerHTML=pHtml;
+  } else pipeCard.style.display='none';
+  const nonWire=items.filter(i=>!isWire(i)&&!isPipe(i));
   const el=document.getElementById('dashTable');
   if(!items.length){el.innerHTML='<div class="empty">No items yet.</div>';return;}
   if(!nonWire.length){el.innerHTML='<div class="empty">All items are wires -- shown above.</div>';return;}
@@ -684,13 +868,22 @@ async function delItem(id){
 
 function fillBrands(){
   const brands=[...new Set(items.map(i=>i.brand||'Unknown Brand'))].sort();
-  ['si-brand','so-brand','h-brand','rep-brand'].forEach(id=>{
+  ['si-brand','so-brand','h-brand','rep-brand','cs-brand','ls-brand'].forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
     const prev=el.value;
     el.innerHTML='<option value="">-- All Brands --</option>';
     brands.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;el.appendChild(o);});
     if(prev)el.value=prev;
   });
+  // pc-brand: only brands that have at least one pure pipe item
+  const pcEl=document.getElementById('pc-brand');
+  if(pcEl){
+    const prev=pcEl.value;
+    pcEl.innerHTML='<option value="">-- Select a Brand --</option>';
+    const pipeBrands=[...new Set(items.filter(i=>{const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');}).map(i=>i.brand||'Unknown Brand'))].sort();
+    pipeBrands.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;pcEl.appendChild(o);});
+    if(prev)pcEl.value=prev;
+  }
 }
 function fillSIBrands(){fillBrands();}
 function fillSOBrands(){fillBrands();}
@@ -964,6 +1157,365 @@ function renderReport(){
     }).join('')+'</tbody></table>';
 }
 
+// ── CLOSING STOCK BY BRAND ────────────────────────────────────────
+const CS_BG={RED:'#e53935',YELLOW:'#FDD835',GREEN:'#7CB342',BLUE:'#1E88E5',BLACK:'#212121',WHITE:'#f5f5f5',GREY:'#9E9E9E'};
+const CS_TX={RED:'#fff',YELLOW:'#333',GREEN:'#fff',BLUE:'#fff',BLACK:'#FF8F00',WHITE:'#333',GREY:'#fff'};
+
+function buildWireMatrix(brandItems){
+  // Only wire items for this brand
+  const wireItems=brandItems.filter(isWire);
+  if(!wireItems.length) return '';
+  const usedColors=WIRE_COLORS.filter(c=>wireItems.some(i=>i.name.toUpperCase().endsWith(' '+c)));
+  if(!usedColors.length) return '';
+  // Build rows keyed by baseName
+  const rows={};
+  wireItems.forEach(i=>{
+    const color=WIRE_COLORS.find(c=>i.name.toUpperCase().endsWith(' '+c));
+    const base=baseName(i.name);
+    if(!rows[base])rows[base]={};
+    rows[base][color||'OTHER']=i;
+  });
+  let h='';
+  h+='<div style="font-size:13px;font-weight:700;color:#185FA5;padding:10px 16px;background:#e8f0fb;border-bottom:1px solid #d0ddf5">🔌 Wires &amp; Cables — Colour Matrix</div>';
+  h+='<div class="tw"><table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:0">';
+  h+='<thead><tr><th style="background:#f8f9fa;padding:9px 12px;border:1px solid #ddd;text-align:left;min-width:200px">Wire Type</th>';
+  usedColors.forEach(c=>{h+='<th style="background:'+CS_BG[c]+';color:'+CS_TX[c]+';padding:9px 18px;border:1px solid #ddd;text-align:center;font-weight:700;min-width:75px">'+c+'</th>';});
+  h+='</tr></thead><tbody>';
+  Object.keys(rows).sort().forEach((base,idx)=>{
+    h+='<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'">';
+    h+='<td style="padding:9px 12px;border:1px solid #e0e0e0;font-weight:500">'+base+'</td>';
+    usedColors.forEach(c=>{
+      const v=rows[base][c];
+      if(v){const s=stock(v.id),low=s<=v.min_stock&&v.min_stock>0;
+        h+='<td style="padding:9px 18px;border:1px solid #e0e0e0;text-align:center;font-weight:700;background:'+(low?'#ffebee':CS_BG[c]+'22')+';color:'+(low?'#c62828':'#1a1a1a')+'">'+(low?'<span title="Low Stock">⚠ </span>':'')+s+'</td>';
+      }else h+='<td style="padding:9px 18px;border:1px solid #e0e0e0;text-align:center;color:#ccc">--</td>';
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  return h;
+}
+
+function buildPipeMatrix(brandItems){
+  // Only PIPES — exclude BEND and FLEXIBLE
+  const pipeItems=brandItems.filter(i=>{const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');});
+  if(!pipeItems.length) return '';
+  const sorted=pipeItems.sort((a,b)=>a.name.localeCompare(b.name));
+  let h='<div style="font-size:13px;font-weight:700;color:#1b5e20;padding:10px 16px;background:#e8f5e9;border-bottom:1px solid #c8e6c9;margin-top:2px">🪠 Pipes Only</div>';
+  h+='<div class="tw"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>'
+    +'<th style="background:#2e7d32;color:#fff;padding:9px 14px;border:1px solid #388e3c;text-align:left">Pipe Name</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:9px 14px;border:1px solid #388e3c;text-align:center;min-width:90px">Stock</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:9px 14px;border:1px solid #388e3c;text-align:center;min-width:65px">Unit</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:9px 14px;border:1px solid #388e3c;text-align:center;min-width:65px">Min</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:9px 14px;border:1px solid #388e3c;text-align:center;min-width:80px">Status</th>'
+    +'</tr></thead><tbody>';
+  sorted.forEach((i,idx)=>{
+    const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+    h+='<tr style="background:'+(low?'#fff8f8':(idx%2===0?'#fff':'#f1f8e9'))+'">'
+      +'<td style="padding:10px 14px;border:1px solid #dcedc8;font-weight:600;color:#1b5e20">'+i.name+'</td>'
+      +'<td style="padding:10px 14px;border:1px solid #dcedc8;text-align:center"><span style="font-size:18px;font-weight:800;color:'+(low?'#c62828':'#2e7d32')+'">'+s+'</span></td>'
+      +'<td style="padding:10px 14px;border:1px solid #dcedc8;text-align:center;font-size:12px;color:#555">'+i.unit+'</td>'
+      +'<td style="padding:10px 14px;border:1px solid #dcedc8;text-align:center;font-size:12px;color:#888">'+i.min_stock+'</td>'
+      +'<td style="padding:10px 14px;border:1px solid #dcedc8;text-align:center">'
+        +'<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:'+(low?'#ffebee':'#e8f5e9')+';color:'+(low?'#c62828':'#2e7d32')+'">'+(low?'⚠ LOW':'✓ OK')+'</span>'
+      +'</td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div>';
+  return h;
+}
+
+function renderClosingStock(){
+  const brandF=document.getElementById('cs-brand')?.value||'';
+  const emptyState=document.getElementById('cs-empty-state');
+  const results=document.getElementById('cs-results');
+  const countEl=document.getElementById('cs-item-count');
+  const el=document.getElementById('cs-table');
+  if(!brandF){
+    if(emptyState)emptyState.style.display='block';
+    if(results)results.style.display='none';
+    if(countEl)countEl.textContent='';
+    return;
+  }
+  if(emptyState)emptyState.style.display='none';
+  if(results)results.style.display='block';
+  const filtered=items.filter(i=>(i.brand||'Unknown Brand')===brandF);
+  if(!filtered.length){if(el)el.innerHTML='<div class="empty">No items found for this brand.</div>';if(countEl)countEl.textContent='';return;}
+  const totalItems=filtered.length;
+  const lowItems=filtered.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0);
+  const okItems=totalItems-lowItems.length;
+  if(countEl)countEl.textContent=totalItems+' items';
+  const sb=document.getElementById('cs-summary-bar');
+  if(sb){sb.innerHTML='<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Brand</div><div class="rv" style="color:#185FA5;font-size:14px">'+brandF+'</div></div>'+'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Total Items</div><div class="rv" style="color:#185FA5">'+totalItems+'</div></div>'+'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">OK Stock</div><div class="rv" style="color:#2e7d32">'+okItems+'</div></div>'+'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Low Stock</div><div class="rv" style="color:#c62828">'+lowItems.length+'</div></div>';}
+
+  const wireItems=filtered.filter(isWire);
+  const pipeItems=filtered.filter(isPipe);
+  const otherItems=filtered.filter(i=>!isWire(i)&&!isPipe(i));
+  let html='';
+
+  // 1. WIRE colour matrix
+  if(wireItems.length) html+=buildWireMatrix(wireItems);
+
+  // 2. PIPE size matrix
+  if(pipeItems.length) html+=buildPipeMatrix(pipeItems);
+
+  // 3. Other items grouped by category
+  if(otherItems.length){
+    const byCat={};
+    otherItems.forEach(i=>{const cat=i.category||'Other';if(!byCat[cat])byCat[cat]=[];byCat[cat].push(i);});
+    Object.keys(byCat).sort().forEach(cat=>{
+      const catItems=byCat[cat].sort((a,b)=>a.name.localeCompare(b.name));
+      const catLow=catItems.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).length;
+      html+='<div style="font-size:13px;font-weight:700;color:#185FA5;padding:10px 16px;background:#e8f0fb;border-bottom:1px solid #d0ddf5;display:flex;justify-content:space-between;align-items:center;margin-top:2px">';
+      html+='<span>📂 '+cat+'</span><span style="font-size:12px;font-weight:400;color:#555">'+catItems.length+' items'+(catLow?' &nbsp;·&nbsp; <span style="color:#c62828">'+catLow+' low</span>':'')+'</span></div>';
+      html+='<table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>'
+        +'<th style="background:#f8f9fa;padding:9px 14px;border-bottom:2px solid #e0e0e0;text-align:left;font-weight:600">Item Name</th>'
+        +'<th style="background:#f8f9fa;padding:9px 14px;border-bottom:2px solid #e0e0e0;text-align:center;font-weight:600;min-width:100px">Closing Stock</th>'
+        +'<th style="background:#f8f9fa;padding:9px 14px;border-bottom:2px solid #e0e0e0;text-align:center;font-weight:600">Unit</th>'
+        +'<th style="background:#f8f9fa;padding:9px 14px;border-bottom:2px solid #e0e0e0;text-align:center;font-weight:600">Min Level</th>'
+        +'<th style="background:#f8f9fa;padding:9px 14px;border-bottom:2px solid #e0e0e0;text-align:center;font-weight:600">Status</th>'
+        +'</tr></thead><tbody>';
+      catItems.forEach((i,idx)=>{
+        const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+        html+='<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'">'
+          +'<td style="padding:9px 14px;border-bottom:1px solid #f0f0f0;font-weight:500">'+i.name+'</td>'
+          +'<td style="padding:9px 14px;border-bottom:1px solid #f0f0f0;text-align:center;font-weight:700;font-size:15px;'+(low?'color:#c62828;background:#fff5f5':'')+'">'+s+'</td>'
+          +'<td style="padding:9px 14px;border-bottom:1px solid #f0f0f0;text-align:center;color:#555">'+i.unit+'</td>'
+          +'<td style="padding:9px 14px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888">'+i.min_stock+'</td>'
+          +'<td style="padding:9px 14px;border-bottom:1px solid #f0f0f0;text-align:center"><span class="badge '+(low?'low':'ok')+'">'+(low?'⚠ Low':'✓ OK')+'</span></td>'
+          +'</tr>';
+      });
+      html+='</tbody></table>';
+    });
+  }
+  if(el)el.innerHTML=html;
+}
+
+// ── PIPE STOCK REPORT (pipes only, no bends/flexible) ────────────
+function isPurePipe(i){const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');}
+
+function renderPipeStock(){
+  const brandF=document.getElementById('pc-brand')?.value||'';
+  const emptyState=document.getElementById('pc-empty-state');
+  const results=document.getElementById('pc-results');
+  const countEl=document.getElementById('pc-item-count');
+  const el=document.getElementById('pc-table');
+  if(!brandF){
+    if(emptyState)emptyState.style.display='block';
+    if(results)results.style.display='none';
+    if(countEl)countEl.textContent='';
+    return;
+  }
+  if(emptyState)emptyState.style.display='none';
+  if(results)results.style.display='block';
+
+  // Only pure pipes for this brand
+  const pipeOnly=items.filter(i=>(i.brand||'Unknown Brand')===brandF&&isPurePipe(i)).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!pipeOnly.length){
+    if(el)el.innerHTML='<div class="empty">No pipe items found for this brand.</div>';
+    if(countEl)countEl.textContent='';
+    return;
+  }
+  const totalPipes=pipeOnly.length;
+  const lowPipes=pipeOnly.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0);
+  const okPipes=totalPipes-lowPipes.length;
+  if(countEl)countEl.textContent=totalPipes+' pipe'+(totalPipes!==1?'s':'');
+
+  const sb=document.getElementById('pc-summary-bar');
+  if(sb){
+    sb.innerHTML=
+      '<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Brand</div><div class="rv" style="color:#2e7d32;font-size:14px">'+brandF+'</div></div>'
+      +'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Total Pipes</div><div class="rv" style="color:#185FA5">'+totalPipes+'</div></div>'
+      +'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">OK Stock</div><div class="rv" style="color:#2e7d32">'+okPipes+'</div></div>'
+      +'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Low Stock</div><div class="rv" style="color:#c62828">'+lowPipes.length+'</div></div>';
+  }
+
+  let html='<table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>'
+    +'<th style="background:#2e7d32;color:#fff;padding:10px 16px;text-align:left;border:1px solid #388e3c">Pipe Name</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:10px 16px;text-align:center;border:1px solid #388e3c;min-width:100px">Stock</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:10px 16px;text-align:center;border:1px solid #388e3c;min-width:65px">Unit</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:10px 16px;text-align:center;border:1px solid #388e3c;min-width:65px">Min</th>'
+    +'<th style="background:#2e7d32;color:#fff;padding:10px 16px;text-align:center;border:1px solid #388e3c;min-width:80px">Status</th>'
+    +'</tr></thead><tbody>';
+  pipeOnly.forEach((i,idx)=>{
+    const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+    html+='<tr style="background:'+(low?'#fff8f8':(idx%2===0?'#fff':'#f1f8e9'))+'">'
+      +'<td style="padding:11px 16px;border:1px solid #dcedc8;font-weight:600;color:#1b5e20;font-size:13px">'+i.name+'</td>'
+      +'<td style="padding:11px 16px;border:1px solid #dcedc8;text-align:center">'
+        +'<span style="font-size:22px;font-weight:800;color:'+(low?'#c62828':'#2e7d32')+'">'+s+'</span>'
+      +'</td>'
+      +'<td style="padding:11px 16px;border:1px solid #dcedc8;text-align:center;font-size:12px;color:#555">'+i.unit+'</td>'
+      +'<td style="padding:11px 16px;border:1px solid #dcedc8;text-align:center;font-size:12px;color:#888">'+i.min_stock+'</td>'
+      +'<td style="padding:11px 16px;border:1px solid #dcedc8;text-align:center">'
+        +'<span style="display:inline-block;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:'+(low?'#ffebee':'#e8f5e9')+';color:'+(low?'#c62828':'#2e7d32')+'">'+(low?'⚠ LOW':'✓ OK')+'</span>'
+      +'</td></tr>';
+  });
+  html+='</tbody></table>';
+  if(el)el.innerHTML=html;
+}
+
+function exportPipeStockCSV(){
+  const brandF=document.getElementById('pc-brand')?.value||'';
+  if(!brandF){toast('Please select a brand first','err');return;}
+  const pipeOnly=items.filter(i=>(i.brand||'Unknown Brand')===brandF&&isPurePipe(i)).sort((a,b)=>a.name.localeCompare(b.name));
+  const rows=[['Brand','Pipe Name','Stock','Unit','Min Level','Status']];
+  pipeOnly.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;rows.push([i.brand||'',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='PipeStock-'+brandF+'-'+today()+'.csv';a.click();toast('Pipe stock exported!','ok');
+}
+function exportPipeStockXLSX(){
+  const brandF=document.getElementById('pc-brand')?.value||'';
+  if(!brandF){toast('Please select a brand first','err');return;}
+  const pipeOnly=items.filter(i=>(i.brand||'Unknown Brand')===brandF&&isPurePipe(i)).sort((a,b)=>a.name.localeCompare(b.name));
+  const ws_data=[['Brand','Pipe Name','Stock','Unit','Min Level','Status']];
+  pipeOnly.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;ws_data.push([i.brand||'',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:34},{wch:10},{wch:8},{wch:10},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'Pipe Stock');XLSX.writeFile(wb,'PipeStock-'+brandF+'-'+today()+'.xlsx');toast('Pipe stock exported!','ok');
+}
+function printPipeStock(){
+  const brandF=document.getElementById('pc-brand')?.value||'';
+  if(!brandF){toast('Please select a brand first','err');return;}
+  const m=document.getElementById('pcPrintMeta');
+  if(m)m.textContent=currentLoc+' | Brand: '+brandF+' | Pipes Only | '+new Date().toLocaleString('en-IN');
+  document.getElementById('pcPrintHdr').style.display='block';
+  const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-pipeclosing').classList.add('active');
+  window.print();
+  setTimeout(()=>{document.getElementById('pcPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
+}
+
+function exportClosingStockCSV(){
+  const brandF=document.getElementById('cs-brand')?.value||'';
+  if(!brandF){toast('Please select a brand first','err');return;}
+  const filtered=items.filter(i=>(i.brand||'Unknown Brand')===brandF).sort((a,b)=>(a.category||'').localeCompare(b.category||'')||a.name.localeCompare(b.name));
+  const rows=[['Brand','Category','Item','Closing Stock','Unit','Min Level','Status']];
+  filtered.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;rows.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='ClosingStock-'+brandF+'-'+today()+'.csv';a.click();toast('Closing stock exported!','ok');
+}
+function exportClosingStockXLSX(){
+  const brandF=document.getElementById('cs-brand')?.value||'';
+  if(!brandF){toast('Please select a brand first','err');return;}
+  const filtered=items.filter(i=>(i.brand||'Unknown Brand')===brandF).sort((a,b)=>(a.category||'').localeCompare(b.category||'')||a.name.localeCompare(b.name));
+  const ws_data=[['Brand','Category','Item','Closing Stock','Unit','Min Level','Status']];
+  filtered.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;ws_data.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:22},{wch:32},{wch:14},{wch:8},{wch:10},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'Closing Stock');XLSX.writeFile(wb,'ClosingStock-'+brandF+'-'+today()+'.xlsx');toast('Closing stock exported!','ok');
+}
+function printClosingStock(){
+  const brandF=document.getElementById('cs-brand')?.value||'';
+  if(!brandF){toast('Please select a brand first','err');return;}
+  const m=document.getElementById('csPrintMeta');
+  if(m)m.textContent=currentLoc+' | Brand: '+brandF+' | '+new Date().toLocaleString('en-IN');
+  document.getElementById('csPrintHdr').style.display='block';
+  const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-closingstock').classList.add('active');
+  window.print();
+  setTimeout(()=>{document.getElementById('csPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
+}
+
+// ── LOW STOCK REPORT BY BRAND ─────────────────────────────────────
+function renderLowStock(){
+  const brandF=document.getElementById('ls-brand')?.value||'';
+  const el=document.getElementById('ls-table');
+  const badgeEl=document.getElementById('ls-count-badge');
+  const emptyOk=document.getElementById('ls-empty-ok');
+  const results=document.getElementById('ls-results');
+  const sbEl=document.getElementById('ls-summary-bar');
+
+  let filtered=brandF?items.filter(i=>(i.brand||'Unknown Brand')===brandF):[...items];
+  const lowAll=filtered.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0);
+
+  if(badgeEl)badgeEl.textContent=lowAll.length?lowAll.length+' items need attention':'';
+
+  // Summary
+  const brands=[...new Set(lowAll.map(i=>i.brand||'Unknown Brand'))];
+  if(sbEl){
+    sbEl.innerHTML='<div class="rep-metric" style="flex:1;min-width:120px;border:1px solid #ffcdd2"><div class="rl">Low Stock Items</div><div class="rv" style="color:#c62828">'+lowAll.length+'</div></div>'
+      +'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Brands Affected</div><div class="rv" style="color:#e65100">'+brands.length+'</div></div>'
+      +(brandF?'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Viewing Brand</div><div class="rv" style="color:#185FA5;font-size:14px">'+brandF+'</div></div>':'');
+  }
+
+  if(!lowAll.length){
+    if(emptyOk)emptyOk.style.display='block';
+    if(results)results.style.display='none';
+    return;
+  }
+  if(emptyOk)emptyOk.style.display='none';
+  if(results)results.style.display='block';
+
+  // Group by brand → category
+  const byBrand={};
+  lowAll.forEach(i=>{
+    const b=i.brand||'Unknown Brand';
+    const cat=i.category||'Other';
+    if(!byBrand[b])byBrand[b]={};
+    if(!byBrand[b][cat])byBrand[b][cat]=[];
+    byBrand[b][cat].push(i);
+  });
+
+  let html='';
+  Object.keys(byBrand).sort().forEach(brand=>{
+    const catMap=byBrand[brand];
+    const allForBrand=Object.values(catMap).flat();
+    html+='<div style="font-size:15px;font-weight:700;color:#c62828;padding:11px 16px;background:#ffebee;border-radius:8px;border-left:5px solid #c62828;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">';
+    html+='<span>🏷 '+brand+'</span><span style="font-size:12px;font-weight:500;color:#c62828;background:#fff;padding:3px 10px;border-radius:12px">'+allForBrand.length+' low items</span></div>';
+    Object.keys(catMap).sort().forEach(cat=>{
+      const catItems=catMap[cat].sort((a,b)=>stock(a.id)-stock(b.id));// most critical first
+      html+='<div style="font-size:12px;font-weight:600;color:#5d4037;padding:5px 14px;background:#fbe9e7;border-radius:4px;margin-bottom:4px">📂 '+cat+'</div>';
+      html+='<table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:10px"><thead><tr>'
+        +'<th style="background:#fff8f8;padding:8px 12px;border-bottom:2px solid #ffcdd2;text-align:left">Item Name</th>'
+        +'<th style="background:#fff8f8;padding:8px 12px;border-bottom:2px solid #ffcdd2;text-align:center">Current Stock</th>'
+        +'<th style="background:#fff8f8;padding:8px 12px;border-bottom:2px solid #ffcdd2;text-align:center">Min Level</th>'
+        +'<th style="background:#fff8f8;padding:8px 12px;border-bottom:2px solid #ffcdd2;text-align:center">Shortfall</th>'
+        +'<th style="background:#fff8f8;padding:8px 12px;border-bottom:2px solid #ffcdd2;text-align:center">Unit</th>'
+        +'</tr></thead><tbody>';
+      catItems.forEach((i,idx)=>{
+        const s=stock(i.id),need=i.min_stock-s;
+        html+='<tr style="background:'+(idx%2===0?'#fff':'#fff8f8')+'">'
+          +'<td style="padding:8px 12px;border-bottom:1px solid #f5e0e0;font-weight:600;color:#333">'+i.name+'</td>'
+          +'<td style="padding:8px 12px;border-bottom:1px solid #f5e0e0;text-align:center;font-weight:700;color:#c62828;font-size:15px">'+s+'</td>'
+          +'<td style="padding:8px 12px;border-bottom:1px solid #f5e0e0;text-align:center;color:#888">'+i.min_stock+'</td>'
+          +'<td style="padding:8px 12px;border-bottom:1px solid #f5e0e0;text-align:center;font-weight:700;color:#e65100">Need '+need+' more</td>'
+          +'<td style="padding:8px 12px;border-bottom:1px solid #f5e0e0;text-align:center;color:#555">'+i.unit+'</td>'
+          +'</tr>';
+      });
+      html+='</tbody></table>';
+    });
+  });
+  if(el)el.innerHTML=html;
+}
+function exportLowStockCSV(){
+  const brandF=document.getElementById('ls-brand')?.value||'';
+  let filtered=brandF?items.filter(i=>(i.brand||'Unknown Brand')===brandF):[...items];
+  const low=filtered.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).sort((a,b)=>(a.brand||'').localeCompare(b.brand||'')||a.name.localeCompare(b.name));
+  if(!low.length){toast('No low stock items!','info');return;}
+  const rows=[['Brand','Category','Item','Current Stock','Unit','Min Level','Shortfall']];
+  low.forEach(i=>{const s=stock(i.id);rows.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,i.min_stock-s]);});
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='LowStock'+(brandF?'-'+brandF:'-AllBrands')+'-'+today()+'.csv';a.click();toast('Low stock report exported!','ok');
+}
+function exportLowStockXLSX(){
+  const brandF=document.getElementById('ls-brand')?.value||'';
+  let filtered=brandF?items.filter(i=>(i.brand||'Unknown Brand')===brandF):[...items];
+  const low=filtered.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).sort((a,b)=>(a.brand||'').localeCompare(b.brand||'')||a.name.localeCompare(b.name));
+  if(!low.length){toast('No low stock items!','info');return;}
+  const ws_data=[['Brand','Category','Item','Current Stock','Unit','Min Level','Shortfall']];
+  low.forEach(i=>{const s=stock(i.id);ws_data.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,i.min_stock-s]);});
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:22},{wch:32},{wch:14},{wch:8},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,'Low Stock');XLSX.writeFile(wb,'LowStock'+(brandF?'-'+brandF:'-AllBrands')+'-'+today()+'.xlsx');toast('Low stock exported to Excel!','ok');
+}
+function printLowStock(){
+  const brandF=document.getElementById('ls-brand')?.value||'';
+  const m=document.getElementById('lsPrintMeta');
+  if(m)m.textContent=currentLoc+(brandF?' | Brand: '+brandF:' | All Brands')+' | '+new Date().toLocaleString('en-IN');
+  document.getElementById('lsPrintHdr').style.display='block';
+  const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-lowstock').classList.add('active');
+  window.print();
+  setTimeout(()=>{document.getElementById('lsPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
+}
+
 function switchLoc(loc){currentLoc=loc;editingId=null;siQueue=[];soQueue=[];siShowAll=false;soShowAll=false;document.getElementById('locBtn-GODOWN').className='loc-btn'+(loc==='GODOWN'?' active':'');document.getElementById('locBtn-OFFICE').className='loc-btn'+(loc==='OFFICE'?' active':'');document.getElementById('locTitle').textContent=loc==='GODOWN'?'Godown':'Office';document.getElementById('locSub').textContent=loc==='GODOWN'?'Godown Stock Management':'Office Stock Management';load();}
 
 function showPin(){document.getElementById('pinModal').style.display='flex';document.getElementById('pinInput').value='';document.getElementById('pinErr').style.display='none';setTimeout(()=>document.getElementById('pinInput').focus(),100);}
@@ -971,7 +1523,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='fastmoving'){renderFastMoving();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
