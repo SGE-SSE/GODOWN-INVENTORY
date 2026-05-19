@@ -714,7 +714,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div id="dmgAdminNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> -- Login as Admin to record Damage or Return</div>
   <div id="dmgForm">
     <div class="card">
-      <div class="card-title" style="color:#e65100">🔧 Record Damage / Return</div>
+      <div class="card-title" style="color:#e65100">Step 1 — Party &amp; Entry Details</div>
       <div class="frow c3">
         <div class="fg">
           <label>Entry Type *</label>
@@ -735,17 +735,39 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       </div>
     </div>
     <div class="entry-panel">
-      <div class="card-title" style="color:#e65100;margin-bottom:12px">Select Item</div>
+      <div class="card-title" style="color:#e65100;margin-bottom:12px">Step 2 — Select Item</div>
       <div class="frow c2" style="margin-bottom:12px">
         <div class="fg"><label>Brand</label><select id="dmg-brand" onchange="brandChangeDmg()"><option value="">-- All Brands --</option></select></div>
         <div class="fg"><label>Item</label><select id="dmg-item" onchange="itemChangeDmg()"><option value="">-- Select Item --</option></select></div>
+      </div>
+      <div id="dmg-clr-box" style="display:none;margin-bottom:12px">
+        <label style="font-size:12px;font-weight:700;color:#6a1b9a;display:block;margin-bottom:8px">🎨 Select Wire Colour</label>
+        <div id="dmg-clr-btns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
         <div style="flex:1;min-width:140px">
           <div style="font-size:12px;color:#555;margin-bottom:4px">Current Stock: <strong id="dmg-cur-stk" style="color:#2e7d32">--</strong></div>
           <input type="number" id="dmg-qty" placeholder="Enter Quantity" min="1"/>
+          <div class="qty-btns">
+            <button class="qty-btn" onclick="addQty('dmg-qty',1)">+1</button>
+            <button class="qty-btn" onclick="addQty('dmg-qty',5)">+5</button>
+            <button class="qty-btn" onclick="addQty('dmg-qty',10)">+10</button>
+            <button class="qty-btn" onclick="addQty('dmg-qty',25)">+25</button>
+            <button class="qty-btn" onclick="addQty('dmg-qty',50)">+50</button>
+            <button class="qty-btn" onclick="addQty('dmg-qty',100)">+100</button>
+          </div>
         </div>
-        <button class="btn orange" style="padding:10px 24px" onclick="submitDmgRtn()">✅ Submit</button>
+        <button class="btn orange" style="padding:10px 24px" onclick="addToDmgQueue()">+ Add to Queue</button>
+      </div>
+    </div>
+    <div class="card" id="dmg-q-card" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">📋 Queue <span class="q-count out" id="dmg-q-count">0</span></div>
+        <button class="btn sm dng" onclick="clearDmgQueue()">Clear All</button>
+      </div>
+      <div class="tw" id="dmg-q-table"></div>
+      <div class="ar" style="margin-top:14px;padding-top:14px;border-top:1px solid #e0e0e0">
+        <button class="btn orange" style="padding:10px 32px;font-size:14px" onclick="submitDmgQueue()">✅ Submit All</button>
       </div>
     </div>
   </div>
@@ -772,7 +794,7 @@ const PIPE_SIZE_TX=['#0d47a1','#1b5e20','#f57f17','#880e4f','#4a148c','#006064',
 const CATS=['Wires & Cables','Switches & Sockets','MCB & Distribution','Lights & Fixtures','Conduits & Fittings','Fans & Motors','Tools & Equipment','Other'];
 const UNITS=['DRUM','BAG','PKT','NOS','BUN','Meters','Rolls','Boxes','Sets','Kg','Coils'];
 let items=[],txns=[],isAdmin=false,currentLoc='GODOWN';
-let siQueue=[],soQueue=[],siSelItemId='',soSelItemId='',editingId=null;
+let siQueue=[],soQueue=[],dmgQueue=[],siSelItemId='',soSelItemId='',dmgSelItemId='',editingId=null;
 let siShowAll=false,soShowAll=false;
 const SI_LIMIT=30,SO_LIMIT=30;
 let editingTxnId=null;
@@ -824,7 +846,7 @@ function pipeBaseName(name){let n=(name||'').toUpperCase();PIPE_SIZES.forEach(s=
 function renderAll(){
   renderDash();renderItems();renderSI();renderSO();renderHistory();renderAlerts();renderReport();fillBrands();alertBadge();
   renderDmgHistory();renderPending();renderStockValue();
-  const hasQ=(siQueue.length>0)||(soQueue.length>0);
+  const hasQ=(siQueue.length>0)||(soQueue.length>0)||(dmgQueue.length>0);
   if(!hasQ){fillSIBrands();fillSOBrands();}
   document.getElementById('addItemCard').style.display=isAdmin?'block':'none';
   document.getElementById('siForm').style.display=isAdmin?'block':'none';
@@ -2228,7 +2250,6 @@ function exportStockValueXLSX(){
 }
 
 // ── DAMAGE / RETURN ───────────────────────────────────────────────
-let dmgSelItemId='';
 function brandChangeDmg(){
   const brand=document.getElementById('dmg-brand').value;
   const itemSel=document.getElementById('dmg-item');
@@ -2239,41 +2260,128 @@ function brandChangeDmg(){
     const o=document.createElement('option');o.value=i.id;o.textContent=i.name+' ('+i.unit+') -- Stock: '+s+(low?' ⚠':'');
     if(low)o.style.color='#c62828';itemSel.appendChild(o);
   });
+  document.getElementById('dmg-clr-box').style.display='none';
   document.getElementById('dmg-cur-stk').textContent='--';
   dmgSelItemId='';
 }
 function itemChangeDmg(){
   const itemId=document.getElementById('dmg-item').value;
   dmgSelItemId=itemId;
-  if(!itemId){document.getElementById('dmg-cur-stk').textContent='--';return;}
+  if(!itemId){document.getElementById('dmg-clr-box').style.display='none';document.getElementById('dmg-cur-stk').textContent='--';return;}
   const item=items.find(i=>i.id===itemId);if(!item)return;
   const s=stock(itemId),low=s<=item.min_stock&&item.min_stock>0;
   const stk=document.getElementById('dmg-cur-stk');
   stk.textContent=s+' '+item.unit+(low?' ⚠':'');stk.style.color=low?'#c62828':'#2e7d32';
+  // Wire colour logic — same as SI/SO
+  if(isWire(item)){
+    const base=baseName(item.name),brand=item.brand||'';
+    const variants=items.filter(i=>(i.brand||'')===brand&&baseName(i.name)===base);
+    const colored=variants.filter(i=>WIRE_COLORS.some(c=>i.name.toUpperCase().endsWith(' '+c)));
+    if(colored.length>1){
+      const btns=document.getElementById('dmg-clr-btns');btns.innerHTML='';
+      WIRE_COLORS.forEach(c=>{
+        const v=colored.find(i=>i.name.toUpperCase().endsWith(' '+c));if(!v)return;
+        const vs=stock(v.id),vlow=vs<=v.min_stock&&v.min_stock>0;
+        const btn=document.createElement('button');btn.type='button';btn.className='clr-btn';
+        btn.style.cssText=CLR_CSS[c]||'background:#888;color:#fff';
+        btn.innerHTML='● '+c+' <span style="font-size:10px;opacity:.85">('+vs+')'+(vlow?' ⚠':'')+'</span>';
+        const curColor=WIRE_COLORS.find(c2=>item.name.toUpperCase().endsWith(' '+c2));
+        if(c===curColor)btn.classList.add('sel');
+        btn.addEventListener('click',(function(vid,btnEl){return function(){
+          document.querySelectorAll('#dmg-clr-btns .clr-btn').forEach(b=>b.classList.remove('sel'));
+          btnEl.classList.add('sel');
+          dmgSelItemId=vid;
+          const ci=items.find(i=>i.id===vid);
+          if(ci){const cs=stock(vid),cl=cs<=ci.min_stock&&ci.min_stock>0;stk.textContent=cs+' '+ci.unit+(cl?' ⚠':'');stk.style.color=cl?'#c62828':'#2e7d32';}
+          document.getElementById('dmg-qty').focus();
+        };})(v.id,btn));
+        btns.appendChild(btn);
+      });
+      document.getElementById('dmg-clr-box').style.display='block';return;
+    }
+  }
+  document.getElementById('dmg-clr-box').style.display='none';
 }
-async function submitDmgRtn(){
+
+function addToDmgQueue(){
   if(!dmgSelItemId){toast('Select an item','err');return;}
   const qty=parseFloat(document.getElementById('dmg-qty').value);
   if(!qty||qty<=0){toast('Enter quantity','err');return;}
   const entryType=document.getElementById('dmg-type').value;
+  const item=items.find(i=>i.id===dmgSelItemId);if(!item)return;
+  if(entryType==='DAMAGE'&&qty>stock(dmgSelItemId)){toast('Not enough stock! Available: '+stock(dmgSelItemId),'err');return;}
+  const ex=dmgQueue.find(x=>x.itemId===dmgSelItemId&&x.entryType===entryType);
+  if(ex){ex.qty+=qty;toast('Qty updated! ✓','ok');}
+  else{dmgQueue.push({itemId:dmgSelItemId,qty,entryType,name:item.name,brand:item.brand||'',unit:item.unit});toast('Added to queue! ✓','ok');}
+  document.getElementById('dmg-qty').value='';
+  document.getElementById('dmg-qty').focus();
+  renderDmgQueue();
+}
+
+function renderDmgQueue(){
+  const card=document.getElementById('dmg-q-card');
+  document.getElementById('dmg-q-count').textContent=dmgQueue.length;
+  if(!dmgQueue.length){card.style.display='none';return;}
+  card.style.display='block';
+  const wrap=document.getElementById('dmg-q-table');
+  const tbl=document.createElement('table');tbl.style.cssText='border-collapse:collapse;width:100%;font-size:13px';
+  const thead=tbl.createTHead(),hr=thead.insertRow();
+  ['#','Type','Item','Brand','Qty','Unit',''].forEach(h=>{const th=document.createElement('th');th.textContent=h;th.style.cssText='padding:8px 10px;background:#f8f9fa;border:1px solid #e0e0e0;text-align:'+(h==='Item'||h==='Brand'?'left':'center');hr.appendChild(th);});
+  const tbody=tbl.createTBody();
+  dmgQueue.forEach((x,i)=>{
+    const row=tbody.insertRow();row.style.background=i%2===0?'#fff':'#fafafa';
+    const isDmg=x.entryType==='DAMAGE';
+    [[i+1,'center'],[x.entryType,'center'],[x.name,'left','500'],[x.brand,'left','500;color:#185FA5'],[x.qty,'center','700'],[x.unit,'center'],['','center']].forEach((v,ci)=>{
+      const td=row.insertCell();td.style.cssText='padding:8px 10px;border:1px solid #e0e0e0;text-align:'+v[1]+(v[2]?';font-weight:'+v[2]:'');
+      if(ci===1){const sp=document.createElement('span');sp.className=isDmg?'dmg-badge':'rtn-badge';sp.textContent=isDmg?'🔴 DAMAGE':'🟢 RETURN';td.appendChild(sp);}
+      else if(ci===6){const btn=document.createElement('button');btn.className='btn sm dng';btn.textContent='✕';btn.addEventListener('click',(function(idx){return function(){dmgQueue.splice(idx,1);renderDmgQueue();};})(i));td.appendChild(btn);}
+      else td.textContent=v[0];
+    });
+  });
+  wrap.innerHTML='';wrap.appendChild(tbl);
+}
+
+function clearDmgQueue(){if(!confirm('Clear all items from queue?'))return;dmgQueue=[];renderDmgQueue();}
+
+async function submitDmgQueue(){
+  if(!dmgQueue.length){toast('Queue is empty','err');return;}
   const party=document.getElementById('dmg-party').value.trim();
   const note=document.getElementById('dmg-note').value.trim();
   const remarks=document.getElementById('dmg-remarks').value.trim();
   const date=document.getElementById('dmg-date').value||today();
   const operator=document.getElementById('dmg-operator').value.trim();
-  if(entryType==='DAMAGE'&&qty>stock(dmgSelItemId)){toast('Not enough stock for damage entry! Available: '+stock(dmgSelItemId),'err');return;}
-  const fullNote='['+entryType+'] '+(note||'')+(remarks?' | '+remarks:'');
-  if(!confirm(entryType+' entry for '+items.find(i=>i.id===dmgSelItemId)?.name+' x'+qty+'?\nThis will '+(entryType==='DAMAGE'?'REDUCE':'INCREASE')+' stock.'))return;
+  if(operator)localStorage.setItem('sge_operator',operator);
+  // Stock check for all DAMAGE entries
+  for(const x of dmgQueue){
+    if(x.entryType==='DAMAGE'&&x.qty>stock(x.itemId)){toast('Not enough stock: '+x.name+' (Have: '+stock(x.itemId)+')','err');return;}
+  }
+  const dmgCount=dmgQueue.filter(x=>x.entryType==='DAMAGE').length;
+  const rtnCount=dmgQueue.filter(x=>x.entryType==='RETURN').length;
+  const summary=(dmgCount?dmgCount+' DAMAGE':'')+(dmgCount&&rtnCount?' + ':'')+( rtnCount?rtnCount+' RETURN':'');
+  if(!confirm('Submit '+summary+' ('+dmgQueue.length+' item'+(dmgQueue.length>1?'s':'')+')?\nDate: '+date+(note?' | Ref: '+note:'')+(remarks?' | Remark: '+remarks:'')+(operator?' | By: '+operator:'')))return;
   try{
-    const txn={item_id:dmgSelItemId,type:entryType==='DAMAGE'?'OUT':'IN',qty,date,note:fullNote};
-    if(party){if(entryType==='DAMAGE')txn.customer=party;else txn.supplier=party;}
-    if(operator)txn.operator=operator;
-    await api('POST','transactions',txn);
-    toast(entryType+' recorded! Stock '+(entryType==='DAMAGE'?'reduced':'increased')+' by '+qty,'ok');
-    document.getElementById('dmg-qty').value='';document.getElementById('dmg-note').value='';document.getElementById('dmg-remarks').value='';
+    for(const x of dmgQueue){
+      const entryType=x.entryType;
+      const fullNote='['+entryType+'] '+(note||'')+(remarks?' | '+remarks:'');
+      const txn={item_id:x.itemId,type:entryType==='DAMAGE'?'OUT':'IN',qty:x.qty,date,note:fullNote};
+      if(party){if(entryType==='DAMAGE')txn.customer=party;else txn.supplier=party;}
+      if(operator)txn.operator=operator;
+      await api('POST','transactions',txn);
+    }
+    const cnt=dmgQueue.length;
+    dmgQueue=[];
+    document.getElementById('dmg-party').value='';
+    document.getElementById('dmg-note').value='';
+    document.getElementById('dmg-remarks').value='';
+    renderDmgQueue();
+    toast(cnt+' item'+(cnt>1?'s':'')+' submitted! 🎉','ok');
     load(true);renderDmgHistory();
   }catch(e){toast('Error: '+e.message,'err');}
 }
+
+// Keep old submitDmgRtn as no-op alias (no longer called from HTML)
+async function submitDmgRtn(){}
+
 function renderDmgHistory(){
   const search=(document.getElementById('dmg-search')?.value||'').toLowerCase();
   const typeF=document.getElementById('dmg-hist-type')?.value||'';
@@ -2299,8 +2407,8 @@ const dmgDateEl=document.getElementById('dmg-date');if(dmgDateEl)dmgDateEl.value
 load();
 setInterval(()=>{
   if(document.visibilityState!=='visible') return;
-  const hasQ=(siQueue.length>0)||(soQueue.length>0);
-  const hasData=!!(document.getElementById('si-sup').value||document.getElementById('so-cust').value);
+  const hasQ=(siQueue.length>0)||(soQueue.length>0)||(dmgQueue.length>0);
+  const hasData=!!(document.getElementById('si-sup').value||document.getElementById('so-cust').value||document.getElementById('dmg-party').value);
   if(!(hasQ||hasData))load(true);
 },15000);
 </script>
