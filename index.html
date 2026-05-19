@@ -87,6 +87,17 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 .print-hdr{display:none;text-align:center;margin-bottom:16px;border-bottom:2px solid #185FA5;padding-bottom:10px}
 .print-hdr h2{font-size:18px;font-weight:700;color:#185FA5}
 .print-hdr p{font-size:12px;color:#666;margin-top:4px}
+.party-ledger-hdr{background:linear-gradient(90deg,#e8f0fb,#f4f6fa);border-radius:8px;padding:14px 18px;margin-bottom:14px;border-left:5px solid #185FA5}
+.paid-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32;cursor:pointer}
+.unpaid-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:#ffebee;color:#c62828;cursor:pointer}
+.month-card{background:linear-gradient(135deg,#185FA5,#0C447C);color:#fff;border-radius:10px;padding:16px;text-align:center}
+.month-card .ml{font-size:11px;opacity:.8;text-transform:uppercase;margin-bottom:4px}
+.month-card .mv{font-size:22px;font-weight:700}
+.dash-search{width:100%;padding:10px 14px;border:2px solid #185FA5;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:14px;background:#f0f4fa}
+.rate-input{width:100%;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit}
+.dmg-badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#fff3e0;color:#e65100}
+.rtn-badge{display:inline-block;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32}
+.value-card{background:#fff;border-radius:10px;border:1px solid #e8e8e8;padding:14px;margin-bottom:10px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -153,6 +164,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('closingstock',this)">📦 Closing Stock</button>
   <button onclick="go('pipeclosing',this)">🪠 Pipe Stock</button>
   <button onclick="go('lowstock',this)">⚠ Low Stock</button>
+  <button onclick="go('partyledger',this)">👤 Party Ledger</button>
+  <button onclick="go('pending',this)">💳 Pending</button>
+  <button onclick="go('stockvalue',this)">💰 Stock Value</button>
+  <button onclick="go('dmgrtn',this)">🔧 DMG/RTN</button>
 </nav>
 
 <div class="con">
@@ -166,6 +181,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="metric"><div class="ml">Today OUT (Items)</div><div class="mv" id="m-out">--</div></div>
   </div>
   <div id="dashAlerts"></div>
+  <div class="card" id="monthSummaryCard">
+    <div class="card-title">📅 Monthly Summary</div>
+    <div id="monthSummaryGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px"></div>
+  </div>
   <div class="card" id="wireCard" style="display:none">
     <div class="card-title">🔌 Wire Stock Overview</div>
     <div class="tw" id="dashWireTable"></div>
@@ -174,7 +193,9 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="card-title">🪠 Pipe Stock Overview <span style="font-size:11px;font-weight:400;color:#888;margin-left:6px">(Pipes only · Bends &amp; Flexible excluded)</span></div>
     <div class="tw" id="dashPipeTable"></div>
   </div>
-  <div class="card"><div class="card-title">Current Stock Overview</div><div class="tw" id="dashTable"><div class="loading">Loading...</div></div></div>
+  <div class="card"><div class="card-title">Current Stock Overview</div>
+    <input class="dash-search" id="dashSearch" placeholder="🔍 Quick search item, brand, category..." oninput="renderDash()"/>
+    <div class="tw" id="dashTable"><div class="loading">Loading...</div></div></div>
 </div>
 
 <!-- ITEMS -->
@@ -190,6 +211,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <div class="fg"><label>Opening Stock</label><input type="number" id="i-stock" value="0" min="0"/></div>
       <div class="fg"><label>Min Stock (Alert Level)</label><input type="number" id="i-min" value="10" min="0"/></div>
       <div class="fg"><label>Brand</label><input id="i-brand" placeholder="e.g. Havells, Polycab"/></div>
+    </div>
+    <div class="frow c3">
+      <div class="fg"><label>Purchase Rate (₹)</label><input type="number" id="i-prate" placeholder="0.00" min="0" step="0.01"/></div>
+      <div class="fg"><label>Sell Rate (₹)</label><input type="number" id="i-srate" placeholder="0.00" min="0" step="0.01"/></div>
     </div>
     <div class="ar"><button class="btn primary" onclick="addItem()">+ Add Item</button></div>
   </div>
@@ -213,6 +238,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       </div>
       <div class="frow c2">
         <div class="fg"><label>Entered By (Operator)</label><input id="si-operator" placeholder="Your name"/></div>
+        <div class="fg"><label>Remarks (Optional)</label><input id="si-remarks" placeholder="Additional notes / remarks"/></div>
       </div>
     </div>
     <div class="entry-panel">
@@ -289,6 +315,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       </div>
       <div class="frow c2">
         <div class="fg"><label>Entered By (Operator)</label><input id="so-operator" placeholder="Your name"/></div>
+        <div class="fg"><label>Remarks (Optional)</label><input id="so-remarks" placeholder="Additional notes / remarks"/></div>
       </div>
     </div>
     <div class="entry-panel">
@@ -411,7 +438,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
         <input type="date" id="rep-to" onchange="renderReport()" style="margin-bottom:0"/>
       </div>
       <select id="rep-type" onchange="renderReport()" style="flex:0 0 110px;margin-bottom:0"><option value="">IN + OUT</option><option value="IN">IN Only</option><option value="OUT">OUT Only</option></select>
-      <select id="rep-brand" onchange="renderReport()" style="flex:1;min-width:130px;margin-bottom:0"><option value="">All Brands</option></select>
+      <select id="rep-brand" onchange="renderReport();fillRepItems()" style="flex:1;min-width:130px;margin-bottom:0"><option value="">All Brands</option></select>
+      <select id="rep-item" onchange="renderReport()" style="flex:1;min-width:150px;margin-bottom:0"><option value="">All Items</option></select>
+      <input type="text" id="rep-party" placeholder="🔍 Party Name..." oninput="renderReport()" style="flex:1;min-width:140px;margin-bottom:0"/>
+      <input type="text" id="rep-refno" placeholder="🔍 Ref No / Bill No..." oninput="renderReport()" style="flex:1;min-width:150px;margin-bottom:0"/>
       <button class="btn sm" onclick="clearRepF()">Clear</button>
     </div>
   </div>
@@ -635,6 +665,100 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- PARTY LEDGER -->
+<div id="page-partyledger" class="page">
+  <div class="card">
+    <div class="card-title">👤 Party Ledger</div>
+    <div class="sbar" style="flex-wrap:wrap;gap:8px">
+      <select id="pl-party" onchange="renderPartyLedger()" style="flex:1;min-width:200px;margin-bottom:0"><option value="">-- Select Party --</option></select>
+      <select id="pl-type" onchange="renderPartyLedger()" style="flex:0 0 110px;margin-bottom:0"><option value="">IN + OUT</option><option value="IN">IN Only</option><option value="OUT">OUT Only</option></select>
+      <input type="date" id="pl-from" onchange="renderPartyLedger()" style="flex:1;min-width:130px;margin-bottom:0"/>
+      <input type="date" id="pl-to" onchange="renderPartyLedger()" style="flex:1;min-width:130px;margin-bottom:0"/>
+    </div>
+  </div>
+  <div id="pl-summary" class="rep-grid"></div>
+  <div class="card"><div class="tw" id="pl-table"><div class="empty">Select a party to view ledger</div></div></div>
+</div>
+
+<!-- PENDING / CREDIT -->
+<div id="page-pending" class="page">
+  <div class="card">
+    <div class="card-title">💳 Pending / Credit Tracker</div>
+    <div class="sbar" style="flex-wrap:wrap;gap:8px">
+      <input id="pend-search" placeholder="🔍 Search party / item..." oninput="renderPending()" style="flex:2;min-width:180px;margin-bottom:0"/>
+      <select id="pend-status" onchange="renderPending()" style="flex:0 0 140px;margin-bottom:0"><option value="">All Status</option><option value="unpaid">Unpaid Only</option><option value="paid">Paid Only</option><option value="overdue">Overdue Only</option><option value="due">Due Soon</option></select>
+      <select id="pend-type" onchange="renderPending()" style="flex:0 0 110px;margin-bottom:0"><option value="">IN + OUT</option><option value="IN">IN Only</option><option value="OUT">OUT Only</option></select>
+    </div>
+    <p style="font-size:12px;color:#888;margin-top:8px">Click on credit days to edit. Click status badge to mark as paid. All data synced across devices.</p>
+  </div>
+  <div id="pend-summary" class="rep-grid" style="margin-bottom:14px"></div>
+  <div class="card"><div class="tw" id="pend-table"><div class="loading">Loading...</div></div></div>
+</div>
+
+<!-- STOCK VALUE -->
+<div id="page-stockvalue" class="page">
+  <div class="card">
+    <div class="card-title">💰 Stock Value Report</div>
+    <p style="font-size:13px;color:#666;margin-bottom:14px">Set purchase and sell rates on items to see total stock value. Rates are saved on this device.</p>
+    <div class="sbar" style="flex-wrap:wrap;gap:8px">
+      <select id="sv-brand" onchange="renderStockValue()" style="flex:1;min-width:150px;margin-bottom:0"><option value="">All Brands</option></select>
+      <button class="btn sm primary" onclick="exportStockValueXLSX()">📊 Excel</button>
+    </div>
+  </div>
+  <div id="sv-summary" class="rep-grid" style="margin-bottom:14px"></div>
+  <div class="card"><div class="tw" id="sv-table"><div class="loading">Loading...</div></div></div>
+</div>
+
+<!-- DAMAGE / RETURN -->
+<div id="page-dmgrtn" class="page">
+  <div id="dmgAdminNotice" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#795548"><strong>🔐 Admin access required</strong> -- Login as Admin to record Damage or Return</div>
+  <div id="dmgForm">
+    <div class="card">
+      <div class="card-title" style="color:#e65100">🔧 Record Damage / Return</div>
+      <div class="frow c3">
+        <div class="fg">
+          <label>Entry Type *</label>
+          <select id="dmg-type">
+            <option value="DAMAGE">🔴 DAMAGE — Reduces Stock</option>
+            <option value="RETURN">🟢 RETURN — Adds to Stock</option>
+          </select>
+        </div>
+        <div class="fg"><label>Party Name</label><input id="dmg-party" placeholder="Supplier / Customer name"/></div>
+        <div class="fg"><label>Date</label><input type="date" id="dmg-date"/></div>
+      </div>
+      <div class="frow c2">
+        <div class="fg"><label>Ref / Bill No</label><input id="dmg-note" placeholder="Reference number"/></div>
+        <div class="fg"><label>Remarks</label><input id="dmg-remarks" placeholder="Reason for damage / return"/></div>
+      </div>
+      <div class="frow c2">
+        <div class="fg"><label>Entered By</label><input id="dmg-operator" placeholder="Your name"/></div>
+      </div>
+    </div>
+    <div class="entry-panel">
+      <div class="card-title" style="color:#e65100;margin-bottom:12px">Select Item</div>
+      <div class="frow c2" style="margin-bottom:12px">
+        <div class="fg"><label>Brand</label><select id="dmg-brand" onchange="brandChangeDmg()"><option value="">-- All Brands --</option></select></div>
+        <div class="fg"><label>Item</label><select id="dmg-item" onchange="itemChangeDmg()"><option value="">-- Select Item --</option></select></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:12px;color:#555;margin-bottom:4px">Current Stock: <strong id="dmg-cur-stk" style="color:#2e7d32">--</strong></div>
+          <input type="number" id="dmg-qty" placeholder="Enter Quantity" min="1"/>
+        </div>
+        <button class="btn orange" style="padding:10px 24px" onclick="submitDmgRtn()">✅ Submit</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Damage / Return History</div>
+    <div class="sbar" style="gap:8px;flex-wrap:wrap">
+      <input id="dmg-search" placeholder="🔍 Search..." oninput="renderDmgHistory()" style="flex:2;min-width:160px;margin-bottom:0"/>
+      <select id="dmg-hist-type" onchange="renderDmgHistory()" style="flex:0 0 130px;margin-bottom:0"><option value="">All</option><option value="DAMAGE">Damage Only</option><option value="RETURN">Return Only</option></select>
+    </div>
+    <div class="tw" id="dmg-hist-table"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
 <script>
 const SUPA_URL='https://ibawonlchzxmocoxkirz.supabase.co';
 const SUPA_KEY='sb_publishable_j3BvHCejXy9hOnlB0EpcSw_6nJM5N-l';
@@ -699,6 +823,7 @@ function pipeBaseName(name){let n=(name||'').toUpperCase();PIPE_SIZES.forEach(s=
 
 function renderAll(){
   renderDash();renderItems();renderSI();renderSO();renderHistory();renderAlerts();renderReport();fillBrands();alertBadge();
+  renderDmgHistory();renderPending();renderStockValue();
   const hasQ=(siQueue.length>0)||(soQueue.length>0);
   if(!hasQ){fillSIBrands();fillSOBrands();}
   document.getElementById('addItemCard').style.display=isAdmin?'block':'none';
@@ -707,6 +832,7 @@ function renderAll(){
   document.getElementById('soForm').style.display=isAdmin?'block':'none';
   document.getElementById('soAdminNotice').style.display=isAdmin?'none':'block';
   const trf=document.getElementById('transferForm');const trfN=document.getElementById('transferAdminNotice');if(trf){trf.style.display=isAdmin?'block':'none';}if(trfN){trfN.style.display=isAdmin?'none':'block';}
+  const dmgF=document.getElementById('dmgForm');const dmgN=document.getElementById('dmgAdminNotice');if(dmgF){dmgF.style.display=isAdmin?'block':'none';}if(dmgN){dmgN.style.display=isAdmin?'none':'block';}
 }
 
 function renderDash(){
@@ -718,6 +844,24 @@ function renderDash(){
   document.getElementById('m-low').textContent=low.length;
   document.getElementById('m-in').textContent=tIn;
   document.getElementById('m-out').textContent=tOut;
+  // Monthly summary
+  const now=new Date();
+  const thisM=td.substring(0,7);
+  const lastMDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const lastM=lastMDate.toISOString().substring(0,7);
+  const tmIn=txns.filter(t=>t.type==='IN'&&(t.date||'').startsWith(thisM)).reduce((s,t)=>s+t.qty,0);
+  const tmOut=txns.filter(t=>t.type==='OUT'&&(t.date||'').startsWith(thisM)).reduce((s,t)=>s+t.qty,0);
+  const lmIn=txns.filter(t=>t.type==='IN'&&(t.date||'').startsWith(lastM)).reduce((s,t)=>s+t.qty,0);
+  const lmOut=txns.filter(t=>t.type==='OUT'&&(t.date||'').startsWith(lastM)).reduce((s,t)=>s+t.qty,0);
+  const tmTxn=txns.filter(t=>(t.date||'').startsWith(thisM)).length;
+  const lmTxn=txns.filter(t=>(t.date||'').startsWith(lastM)).length;
+  const mg=document.getElementById('monthSummaryGrid');
+  if(mg)mg.innerHTML=
+    '<div class="rep-metric"><div class="rl">This Month IN</div><div class="rv" style="color:#2e7d32">'+tmIn+'</div><div style="font-size:11px;color:#888;margin-top:3px">Last: '+lmIn+'</div></div>'+
+    '<div class="rep-metric"><div class="rl">This Month OUT</div><div class="rv" style="color:#e65100">'+tmOut+'</div><div style="font-size:11px;color:#888;margin-top:3px">Last: '+lmOut+'</div></div>'+
+    '<div class="rep-metric"><div class="rl">This Month Txns</div><div class="rv" style="color:#185FA5">'+tmTxn+'</div><div style="font-size:11px;color:#888;margin-top:3px">Last: '+lmTxn+'</div></div>'+
+    '<div class="rep-metric"><div class="rl">Today IN Qty</div><div class="rv" style="color:#2e7d32">'+tIn+'</div></div>'+
+    '<div class="rep-metric"><div class="rl">Today OUT Items</div><div class="rv" style="color:#e65100">'+tOut+'</div></div>';
   const da=document.getElementById('dashAlerts');
   da.innerHTML=low.length?'<div class="card" style="border-left:4px solid #c62828"><div class="card-title" style="color:#c62828">⚠ Low Stock ('+low.length+')</div>'+low.map(i=>'<div class="arow"><div><div class="aname">'+i.name+'</div><div class="adetail">'+i.category+' · '+(i.brand||'--')+'</div></div><div class="apill">Stock: '+stock(i.id)+' | Min: '+i.min_stock+'</div></div>').join('')+'</div>':'';
   const wireItems=items.filter(isWire);
@@ -813,10 +957,13 @@ function renderDash(){
   } else pipeCard.style.display='none';
   const nonWire=items.filter(i=>!isWire(i)&&!isPipe(i));
   const el=document.getElementById('dashTable');
+  const dq=(document.getElementById('dashSearch')?.value||'').toLowerCase();
   if(!items.length){el.innerHTML='<div class="empty">No items yet.</div>';return;}
-  if(!nonWire.length){el.innerHTML='<div class="empty">All items are wires -- shown above.</div>';return;}
+  const filteredNonWire=dq?nonWire.filter(i=>i.name.toLowerCase().includes(dq)||(i.brand||'').toLowerCase().includes(dq)||(i.category||'').toLowerCase().includes(dq)):nonWire;
+  if(!filteredNonWire.length&&dq){el.innerHTML='<div class="empty">No items match your search.</div>';return;}
+  if(!filteredNonWire.length){el.innerHTML='<div class="empty">All items are wires -- shown above.</div>';return;}
   const byCat={};
-  nonWire.forEach(i=>{const cat=i.category||'Other',brand=i.brand||'Unknown Brand';if(!byCat[cat])byCat[cat]={};if(!byCat[cat][brand])byCat[cat][brand]=[];byCat[cat][brand].push(i);});
+  filteredNonWire.forEach(i=>{const cat=i.category||'Other',brand=i.brand||'Unknown Brand';if(!byCat[cat])byCat[cat]={};if(!byCat[cat][brand])byCat[cat][brand]=[];byCat[cat][brand].push(i);});
   let nwHtml='';
   Object.keys(byCat).sort().forEach(cat=>{
     const catBrands=byCat[cat];
@@ -859,7 +1006,16 @@ async function saveEdit(id){
 async function addItem(){
   const name=document.getElementById('i-name').value.trim();
   if(!name){toast('Enter item name','err');return;}
-  try{await api('POST','items',{name,category:document.getElementById('i-cat').value,unit:document.getElementById('i-unit').value,opening_stock:parseFloat(document.getElementById('i-stock').value)||0,min_stock:parseFloat(document.getElementById('i-min').value)||0,brand:document.getElementById('i-brand').value.trim(),location:currentLoc});toast('Item added!','ok');document.getElementById('i-name').value='';document.getElementById('i-stock').value='0';document.getElementById('i-min').value='10';document.getElementById('i-brand').value='';load(true);}catch(e){toast('Error: '+e.message,'err');}
+  try{
+    const res=await api('POST','items',{name,category:document.getElementById('i-cat').value,unit:document.getElementById('i-unit').value,opening_stock:parseFloat(document.getElementById('i-stock').value)||0,min_stock:parseFloat(document.getElementById('i-min').value)||0,brand:document.getElementById('i-brand').value.trim(),location:currentLoc});
+    // Save rates locally
+    const prate=parseFloat(document.getElementById('i-prate').value)||0;
+    const srate=parseFloat(document.getElementById('i-srate').value)||0;
+    if(res&&res[0]&&res[0].id&&(prate||srate)) localStorage.setItem('sge_rate_'+res[0].id,JSON.stringify({purchase:prate,sell:srate}));
+    toast('Item added!','ok');
+    document.getElementById('i-name').value='';document.getElementById('i-stock').value='0';document.getElementById('i-min').value='10';document.getElementById('i-brand').value='';document.getElementById('i-prate').value='';document.getElementById('i-srate').value='';
+    load(true);
+  }catch(e){toast('Error: '+e.message,'err');}
 }
 async function delItem(id){
   if(!confirm('Delete this item?')) return;
@@ -868,7 +1024,7 @@ async function delItem(id){
 
 function fillBrands(){
   const brands=[...new Set(items.map(i=>i.brand||'Unknown Brand'))].sort();
-  ['si-brand','so-brand','h-brand','rep-brand','cs-brand','ls-brand'].forEach(id=>{
+  ['si-brand','so-brand','h-brand','rep-brand','cs-brand','ls-brand','sv-brand','dmg-brand'].forEach(id=>{
     const el=document.getElementById(id);if(!el)return;
     const prev=el.value;
     el.innerHTML='<option value="">-- All Brands --</option>';
@@ -884,9 +1040,20 @@ function fillBrands(){
     pipeBrands.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;pcEl.appendChild(o);});
     if(prev)pcEl.value=prev;
   }
+  // Party ledger dropdown
+  const plEl=document.getElementById('pl-party');
+  if(plEl){
+    const prev=plEl.value;
+    const parties=[...new Set([...txns.map(t=>t.supplier||''),...txns.map(t=>t.customer||'')].filter(Boolean))].sort();
+    plEl.innerHTML='<option value="">-- Select Party --</option>';
+    parties.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;plEl.appendChild(o);});
+    if(prev)plEl.value=prev;
+  }
 }
 function fillSIBrands(){fillBrands();}
 function fillSOBrands(){fillBrands();}
+// Populate rep-item on page load
+setTimeout(fillRepItems,800);
 
 function brandChange(prefix){
   const brand=document.getElementById(prefix+'-brand').value;
@@ -989,20 +1156,27 @@ async function submitQ(prefix){
   const party=partyEl.value.trim();
   if(!party){toast('Enter '+(prefix==='si'?'Supplier':'Customer')+' name','err');partyEl.focus();return;}
   const note=document.getElementById(prefix+'-note').value.trim();
+  const remarks=document.getElementById(prefix+'-remarks')?.value.trim()||'';
+  const fullNote=note+(remarks?' | Remark: '+remarks:'');
   const date=document.getElementById(prefix+'-date').value||today();
   const operator=document.getElementById(prefix+'-operator').value.trim();if(operator)localStorage.setItem('sge_operator',operator);
   if(prefix==='so'){for(const x of q){if(x.qty>stock(x.itemId)){toast('Not enough stock: '+x.name+' (Have: '+stock(x.itemId)+')','err');return;}}}
-  if(!confirm('Submit '+(prefix==='si'?'Stock IN':'Stock OUT')+' for '+q.length+' item(s) to '+(prefix==='si'?'Supplier':'Customer')+': '+party+'?\nDate: '+date+(note?' | Ref: '+note:'')+(operator?' | By: '+operator:'')))return;
+  // Duplicate check
+  const dupes=q.filter(x=>txns.some(t=>t.item_id===x.itemId&&t.type===(prefix==='si'?'IN':'OUT')&&t.date===date&&t.qty===x.qty&&(t.supplier||t.customer||'')===party));
+  if(dupes.length){const names=dupes.map(d=>d.name).join(', ');if(!confirm('⚠ Possible duplicate detected!\n\nSame item, qty, party and date already exists:\n'+names+'\n\nContinue anyway?'))return;}
+  if(!confirm('Submit '+(prefix==='si'?'Stock IN':'Stock OUT')+' for '+q.length+' item(s) to '+(prefix==='si'?'Supplier':'Customer')+': '+party+'?\nDate: '+date+(note?' | Ref: '+note:'')+(remarks?' | Remark: '+remarks:'')+(operator?' | By: '+operator:'')))return;
   try{
     for(const x of q){
-      const txn={item_id:x.itemId,type:prefix==='si'?'IN':'OUT',qty:x.qty,date,note};
+      const txn={item_id:x.itemId,type:prefix==='si'?'IN':'OUT',qty:x.qty,date,note:fullNote};
       if(prefix==='si')txn.supplier=party;else txn.customer=party;
       if(operator)txn.operator=operator;
-      await api('POST','transactions',txn);
+      const res=await api('POST','transactions',txn);
+      // Save remarks separately if any
+      if(remarks&&res&&res[0]&&res[0].id) localStorage.setItem('sge_remark_'+res[0].id,remarks);
     }
     const cnt=q.length;
-    if(prefix==='si'){siQueue=[];document.getElementById('si-sup').value='';document.getElementById('si-note').value='';document.getElementById('si-operator').value='';}
-    else{soQueue=[];document.getElementById('so-cust').value='';document.getElementById('so-note').value='';document.getElementById('so-operator').value='';}
+    if(prefix==='si'){siQueue=[];document.getElementById('si-sup').value='';document.getElementById('si-note').value='';document.getElementById('si-operator').value='';document.getElementById('si-remarks').value='';}
+    else{soQueue=[];document.getElementById('so-cust').value='';document.getElementById('so-note').value='';document.getElementById('so-operator').value='';document.getElementById('so-remarks').value='';}
     renderQ(prefix);toast(cnt+' items submitted! 🎉','ok');load(true);
   }catch(e){toast('Error: '+e.message,'err');}
 }
@@ -1123,17 +1297,33 @@ function renderAlerts(){
 }
 function alertBadge(){const n=items.filter(i=>stock(i.id)<=i.min_stock&&i.min_stock>0).length;document.getElementById('alertsTab').innerHTML='Alerts'+(n>0?'<span class="abadge">'+n+'</span>':'');}
 
-function clearRepF(){['rep-from','rep-to','rep-type','rep-brand'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});renderReport();}
+function clearRepF(){['rep-from','rep-to','rep-type','rep-brand','rep-item','rep-party','rep-refno'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});fillRepItems();renderReport();}
+function fillRepItems(){
+  const brandF=document.getElementById('rep-brand')?.value||'';
+  const el=document.getElementById('rep-item');if(!el)return;
+  const prev=el.value;
+  const filtered=brandF?items.filter(i=>(i.brand||'Unknown Brand')===brandF):items;
+  const sorted=[...filtered].sort((a,b)=>a.name.localeCompare(b.name));
+  el.innerHTML='<option value="">All Items</option>';
+  sorted.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name+(i.brand?' ('+i.brand+')':'');el.appendChild(o);});
+  if(prev)el.value=prev;
+}
 function renderReport(){
   const fromD=document.getElementById('rep-from')?.value||'';
   const toD=document.getElementById('rep-to')?.value||'';
   const typeF=document.getElementById('rep-type')?.value||'';
   const brandF=document.getElementById('rep-brand')?.value||'';
+  const itemF=document.getElementById('rep-item')?.value||'';
+  const partyF=(document.getElementById('rep-party')?.value||'').toLowerCase().trim();
+  const refnoF=(document.getElementById('rep-refno')?.value||'').toLowerCase().trim();
   let list=[...txns];
   if(fromD)list=list.filter(t=>t.date>=fromD);
   if(toD)list=list.filter(t=>t.date<=toD);
   if(typeF)list=list.filter(t=>t.type===typeF);
   if(brandF)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.brand||'Unknown Brand')===brandF;});
+  if(itemF)list=list.filter(t=>t.item_id===itemF);
+  if(partyF)list=list.filter(t=>{const p=t.type==='IN'?(t.supplier||''):(t.customer||'');return p.toLowerCase().includes(partyF);});
+  if(refnoF)list=list.filter(t=>(t.note||'').toLowerCase().includes(refnoF));
   const inT=list.filter(t=>t.type==='IN'),outT=list.filter(t=>t.type==='OUT');
   document.getElementById('rep-summary').innerHTML=
     '<div class="rep-metric"><div class="rl">Total IN Qty</div><div class="rv" style="color:#2e7d32">'+inT.reduce((s,t)=>s+t.qty,0)+'</div></div>'+
@@ -1551,9 +1741,14 @@ function exportSOXLSX(){
   list.forEach(t=>{const it=items.find(i=>i.id===t.item_id);ws_data.push([t.date,fmtDT(t.created_at),it?it.name:'?',it?it.brand||'':'',t.qty,it?it.unit:'',t.customer||'',t.note||'',t.operator||'']);});
   const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:12},{wch:18},{wch:30},{wch:14},{wch:8},{wch:8},{wch:22},{wch:14},{wch:14}];XLSX.utils.book_append_sheet(wb,ws,'Stock OUT');XLSX.writeFile(wb,'SGE-SSE-StockOUT-'+today()+'.xlsx');toast('Stock OUT exported!','ok');
 }
+function getRepFiltered(){
+  const fromD=document.getElementById('rep-from')?.value||'',toD=document.getElementById('rep-to')?.value||'',typeF=document.getElementById('rep-type')?.value||'',brandF=document.getElementById('rep-brand')?.value||'',itemF=document.getElementById('rep-item')?.value||'',partyF=(document.getElementById('rep-party')?.value||'').toLowerCase().trim(),refnoF=(document.getElementById('rep-refno')?.value||'').toLowerCase().trim();
+  let list=[...txns];
+  if(fromD)list=list.filter(t=>t.date>=fromD);if(toD)list=list.filter(t=>t.date<=toD);if(typeF)list=list.filter(t=>t.type===typeF);if(brandF)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.brand||'Unknown Brand')===brandF;});if(itemF)list=list.filter(t=>t.item_id===itemF);if(partyF)list=list.filter(t=>{const p=t.type==='IN'?(t.supplier||''):(t.customer||'');return p.toLowerCase().includes(partyF);});if(refnoF)list=list.filter(t=>(t.note||'').toLowerCase().includes(refnoF));
+  return list;
+}
 function exportReportCSV(){
-  const fromD=document.getElementById('rep-from')?.value||'',toD=document.getElementById('rep-to')?.value||'',typeF=document.getElementById('rep-type')?.value||'',brandF=document.getElementById('rep-brand')?.value||'';
-  let list=[...txns];if(fromD)list=list.filter(t=>t.date>=fromD);if(toD)list=list.filter(t=>t.date<=toD);if(typeF)list=list.filter(t=>t.type===typeF);if(brandF)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.brand||'Unknown Brand')===brandF;});
+  const list=getRepFiltered();
   const byItem={};list.forEach(t=>{if(!byItem[t.item_id])byItem[t.item_id]={inQty:0,outQty:0};if(t.type==='IN')byItem[t.item_id].inQty+=t.qty;else byItem[t.item_id].outQty+=t.qty;});
   const rows=[['Item','Brand','Unit','IN Qty','OUT Qty','Net','Current Stock']];
   Object.entries(byItem).forEach(([id,d])=>{const it=items.find(i=>i.id===id);rows.push([it?it.name:'?',it?it.brand||'':'',it?it.unit:'',d.inQty,d.outQty,d.inQty-d.outQty,stock(id)]);});
@@ -1561,16 +1756,14 @@ function exportReportCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='SGE-SSE-Report-'+today()+'.csv';a.click();toast('Report exported!','ok');
 }
 function exportReportXLSX(){
-  const fromD=document.getElementById('rep-from')?.value||'',toD=document.getElementById('rep-to')?.value||'',typeF=document.getElementById('rep-type')?.value||'',brandF=document.getElementById('rep-brand')?.value||'';
-  let list=[...txns];if(fromD)list=list.filter(t=>t.date>=fromD);if(toD)list=list.filter(t=>t.date<=toD);if(typeF)list=list.filter(t=>t.type===typeF);if(brandF)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.brand||'Unknown Brand')===brandF;});
+  const list=getRepFiltered();
   const byItem={};list.forEach(t=>{if(!byItem[t.item_id])byItem[t.item_id]={inQty:0,outQty:0};if(t.type==='IN')byItem[t.item_id].inQty+=t.qty;else byItem[t.item_id].outQty+=t.qty;});
   const ws_data=[['Item','Brand','Unit','IN Qty','OUT Qty','Net Movement','Current Stock']];
   Object.entries(byItem).forEach(([id,d])=>{const it=items.find(i=>i.id===id);ws_data.push([it?it.name:'?',it?it.brand||'':'',it?it.unit:'',d.inQty,d.outQty,d.inQty-d.outQty,stock(id)]);});
   const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:30},{wch:14},{wch:8},{wch:10},{wch:10},{wch:14},{wch:14}];XLSX.utils.book_append_sheet(wb,ws,'Report');XLSX.writeFile(wb,'SGE-SSE-Report-'+today()+'.xlsx');toast('Report exported!','ok');
 }
 function exportReportDetailCSV(){
-  const fromD=document.getElementById('rep-from')?.value||'',toD=document.getElementById('rep-to')?.value||'',typeF=document.getElementById('rep-type')?.value||'',brandF=document.getElementById('rep-brand')?.value||'';
-  let list=[...txns];if(fromD)list=list.filter(t=>t.date>=fromD);if(toD)list=list.filter(t=>t.date<=toD);if(typeF)list=list.filter(t=>t.type===typeF);if(brandF)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.brand||'Unknown Brand')===brandF;});
+  const list=getRepFiltered();
   list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
   const rows=[['Date','Type','Item','Brand','Qty','Unit','Party','Ref No','By']];
   list.forEach(t=>{const it=items.find(i=>i.id===t.item_id);rows.push([t.date,t.type,it?it.name:'?',it?it.brand||'':'',t.qty,it?it.unit:'',t.type==='IN'?(t.supplier||''):(t.customer||''),t.note||'',t.operator||'']);});
@@ -1578,8 +1771,7 @@ function exportReportDetailCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='SGE-SSE-Report-Detail-'+today()+'.csv';a.click();toast('Detail exported!','ok');
 }
 function exportReportDetailXLSX(){
-  const fromD=document.getElementById('rep-from')?.value||'',toD=document.getElementById('rep-to')?.value||'',typeF=document.getElementById('rep-type')?.value||'',brandF=document.getElementById('rep-brand')?.value||'';
-  let list=[...txns];if(fromD)list=list.filter(t=>t.date>=fromD);if(toD)list=list.filter(t=>t.date<=toD);if(typeF)list=list.filter(t=>t.type===typeF);if(brandF)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return it&&(it.brand||'Unknown Brand')===brandF;});
+  const list=getRepFiltered();
   list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
   const ws_data=[['Date','Type','Item','Brand','Qty','Unit','Party','Ref No','By']];
   list.forEach(t=>{const it=items.find(i=>i.id===t.item_id);ws_data.push([t.date,t.type,it?it.name:'?',it?it.brand||'':'',t.qty,it?it.unit:'',t.type==='IN'?(t.supplier||''):(t.customer||''),t.note||'',t.operator||'']);});
@@ -1878,11 +2070,232 @@ async function renderTransfers(){
   }catch(e){el.innerHTML='<div class="empty">Error loading transfers.</div>';}
 }
 
+// ── PARTY LEDGER ─────────────────────────────────────────────────
+function renderPartyLedger(){
+  const party=document.getElementById('pl-party')?.value||'';
+  const typeF=document.getElementById('pl-type')?.value||'';
+  const fromD=document.getElementById('pl-from')?.value||'';
+  const toD=document.getElementById('pl-to')?.value||'';
+  const tbl=document.getElementById('pl-table');
+  const sum=document.getElementById('pl-summary');
+  if(!party){tbl.innerHTML='<div class="empty">Select a party to view ledger</div>';sum.innerHTML='';return;}
+  let list=txns.filter(t=>(t.supplier||t.customer||'')===party);
+  if(typeF)list=list.filter(t=>t.type===typeF);
+  if(fromD)list=list.filter(t=>t.date>=fromD);
+  if(toD)list=list.filter(t=>t.date<=toD);
+  list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
+  const inQty=list.filter(t=>t.type==='IN').reduce((s,t)=>s+t.qty,0);
+  const outQty=list.filter(t=>t.type==='OUT').reduce((s,t)=>s+t.qty,0);
+  sum.innerHTML='<div class="rep-metric"><div class="rl">Party</div><div class="rv" style="color:#185FA5;font-size:14px">'+party+'</div></div>'+'<div class="rep-metric"><div class="rl">Total IN</div><div class="rv" style="color:#2e7d32">'+inQty+'</div></div>'+'<div class="rep-metric"><div class="rl">Total OUT</div><div class="rv" style="color:#e65100">'+outQty+'</div></div>'+'<div class="rep-metric"><div class="rl">Transactions</div><div class="rv" style="color:#185FA5">'+list.length+'</div></div>';
+  if(!list.length){tbl.innerHTML='<div class="empty">No transactions found for this party.</div>';return;}
+  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Ref No</th><th>Remarks</th><th>By</th></tr></thead><tbody>'+
+    list.map((t,idx)=>{const it=items.find(i=>i.id===t.item_id);const rmk=localStorage.getItem('sge_remark_'+t.id)||'';const noteParts=(t.note||'').split(' | Remark: ');const dispNote=noteParts[0]||'--';
+      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td>'+dispNote+'</td><td style="font-size:12px;color:#555">'+(rmk||noteParts[1]||'--')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+// ── PENDING / CREDIT TRACKER ─────────────────────────────────────
+function togglePaid(txnId){
+  const key='sge_paid_'+txnId;
+  const current=localStorage.getItem(key)==='true';
+  localStorage.setItem(key,(!current).toString());
+  renderPending();
+}
+function setCreditDays(txnId){
+  const current=parseInt(localStorage.getItem('sge_credit_'+txnId)||'0');
+  const days=prompt('Enter credit days (0 for no credit):',current);
+  if(days===null)return;
+  const num=parseInt(days)||0;
+  if(num<0){toast('Invalid number','err');return;}
+  localStorage.setItem('sge_credit_'+txnId,num.toString());
+  renderPending();
+  toast('Credit days saved!','ok');
+}
+function getCreditDays(txnId){
+  return parseInt(localStorage.getItem('sge_credit_'+txnId)||'0');
+}
+function calcMaturityDate(txnDate,creditDays){
+  if(!creditDays)return null;
+  const d=new Date(txnDate+'T00:00:00');
+  d.setDate(d.getDate()+creditDays);
+  return d.toISOString().substring(0,10);
+}
+function daysRemaining(maturityDate){
+  if(!maturityDate)return null;
+  const today=new Date(new Date().toISOString().substring(0,10));
+  const maturity=new Date(maturityDate+'T00:00:00');
+  const diff=Math.floor((maturity-today)/(1000*60*60*24));
+  return diff;
+}
+function renderPending(){
+  const search=(document.getElementById('pend-search')?.value||'').toLowerCase();
+  const status=document.getElementById('pend-status')?.value||'';
+  const typeF=document.getElementById('pend-type')?.value||'';
+  let list=[...txns];
+  if(typeF)list=list.filter(t=>t.type===typeF);
+  if(search)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);const p=t.supplier||t.customer||'';return (it?it.name:'').toLowerCase().includes(search)||p.toLowerCase().includes(search);});
+  
+  // Calculate status for each transaction
+  list=list.map(t=>{
+    const paid=localStorage.getItem('sge_paid_'+t.id)==='true';
+    const creditDays=getCreditDays(t.id);
+    const maturity=calcMaturityDate(t.date,creditDays);
+    const daysRem=maturity?daysRemaining(maturity):null;
+    let txnStatus='no-credit';
+    if(paid)txnStatus='paid';
+    else if(creditDays>0){
+      if(daysRem===null)txnStatus='no-credit';
+      else if(daysRem<0)txnStatus='overdue';
+      else if(daysRem<=7)txnStatus='due-soon';
+      else txnStatus='not-due';
+    }
+    return {...t,paid,creditDays,maturity,daysRem,txnStatus};
+  });
+  
+  // Apply status filter
+  if(status==='paid')list=list.filter(t=>t.paid);
+  else if(status==='unpaid')list=list.filter(t=>!t.paid);
+  else if(status==='overdue')list=list.filter(t=>t.txnStatus==='overdue');
+  else if(status==='due')list=list.filter(t=>t.txnStatus==='due-soon');
+  
+  list.sort((a,b)=>{
+    // Sort: overdue first, then due soon, then by date desc
+    if(a.txnStatus==='overdue'&&b.txnStatus!=='overdue')return -1;
+    if(b.txnStatus==='overdue'&&a.txnStatus!=='overdue')return 1;
+    if(a.txnStatus==='due-soon'&&b.txnStatus!=='due-soon')return -1;
+    if(b.txnStatus==='due-soon'&&a.txnStatus!=='due-soon')return 1;
+    return b.date>a.date?1:b.date<a.date?-1:0;
+  });
+  
+  const unpaidCount=txns.filter(t=>localStorage.getItem('sge_paid_'+t.id)!=='true').length;
+  const paidCount=txns.filter(t=>localStorage.getItem('sge_paid_'+t.id)==='true').length;
+  const overdueCount=txns.filter(t=>{const cd=getCreditDays(t.id);const mat=calcMaturityDate(t.date,cd);const dr=mat?daysRemaining(mat):null;return !localStorage.getItem('sge_paid_'+t.id)&&dr!==null&&dr<0;}).length;
+  const dueCount=txns.filter(t=>{const cd=getCreditDays(t.id);const mat=calcMaturityDate(t.date,cd);const dr=mat?daysRemaining(mat):null;return !localStorage.getItem('sge_paid_'+t.id)&&dr!==null&&dr>=0&&dr<=7;}).length;
+  
+  const sumEl=document.getElementById('pend-summary');
+  if(sumEl)sumEl.innerHTML='<div class="rep-metric"><div class="rl">Total Transactions</div><div class="rv" style="color:#185FA5">'+txns.length+'</div></div>'+'<div class="rep-metric"><div class="rl">Unpaid / Pending</div><div class="rv" style="color:#c62828">'+unpaidCount+'</div></div>'+'<div class="rep-metric"><div class="rl">⚠ OVERDUE</div><div class="rv" style="color:#c62828;font-weight:900">'+overdueCount+'</div></div>'+'<div class="rep-metric"><div class="rl">⏰ Due Soon (7d)</div><div class="rv" style="color:#f57c00">'+dueCount+'</div></div>'+'<div class="rep-metric"><div class="rl">✓ Marked Paid</div><div class="rv" style="color:#2e7d32">'+paidCount+'</div></div>';
+  
+  const tbl=document.getElementById('pend-table');
+  if(!list.length){tbl.innerHTML='<div class="empty">No transactions found.</div>';return;}
+  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Party</th><th>Qty</th><th>Ref No</th><th>Credit Days</th><th>Due Date</th><th>Days Left</th><th>Status</th></tr></thead><tbody>'+
+    list.map((t,idx)=>{
+      const it=items.find(i=>i.id===t.item_id);
+      const p=t.supplier||t.customer||'--';
+      const noteParts=(t.note||'').split(' | Remark: ');
+      let statusBadge='';
+      if(t.paid)statusBadge='<span class="paid-badge" onclick="togglePaid(\''+t.id+'\')" title="Click to mark unpaid">✓ Paid</span>';
+      else if(t.txnStatus==='overdue')statusBadge='<span class="unpaid-badge" onclick="togglePaid(\''+t.id+'\')" style="background:#d32f2f;color:#fff" title="OVERDUE! Click to mark paid">🔴 OVERDUE</span>';
+      else if(t.txnStatus==='due-soon')statusBadge='<span class="unpaid-badge" onclick="togglePaid(\''+t.id+'\')" style="background:#f57c00;color:#fff" title="Due soon! Click to mark paid">⏰ DUE SOON</span>';
+      else statusBadge='<span class="unpaid-badge" onclick="togglePaid(\''+t.id+'\')" title="Click to mark paid">⏳ Unpaid</span>';
+      
+      const rowBg=t.txnStatus==='overdue'?'#ffebee':t.txnStatus==='due-soon'?'#fff3e0':(idx%2===0?'#fff':'#fafafa');
+      
+      return '<tr style="background:'+rowBg+'"><td>'+t.date+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td>'+p+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td>'+(noteParts[0]||'--')+'</td><td><span onclick="setCreditDays(\''+t.id+'\')" style="cursor:pointer;color:#185FA5;font-weight:700;text-decoration:underline" title="Click to edit">'+(t.creditDays||'0')+' days</span></td><td style="font-weight:600">'+(t.maturity||'--')+'</td><td style="font-weight:700;color:'+(t.daysRem===null?'#999':t.daysRem<0?'#c62828':t.daysRem<=7?'#f57c00':'#2e7d32')+'">'+(t.daysRem===null?'--':t.daysRem<0?t.daysRem+' (late)':t.daysRem+' days')+'</td><td>'+statusBadge+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+
+// ── STOCK VALUE ───────────────────────────────────────────────────
+function getRate(itemId){try{const r=localStorage.getItem('sge_rate_'+itemId);return r?JSON.parse(r):{purchase:0,sell:0};}catch{return {purchase:0,sell:0};}}
+function saveRate(itemId){
+  const p=parseFloat(document.getElementById('sv-p-'+itemId)?.value)||0;
+  const s=parseFloat(document.getElementById('sv-s-'+itemId)?.value)||0;
+  localStorage.setItem('sge_rate_'+itemId,JSON.stringify({purchase:p,sell:s}));
+  renderStockValue();toast('Rate saved!','ok');
+}
+function renderStockValue(){
+  const brandF=document.getElementById('sv-brand')?.value||'';
+  let list=brandF?items.filter(i=>(i.brand||'Unknown Brand')===brandF):[...items];
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  let totalPurchaseVal=0,totalSellVal=0,itemsWithRate=0;
+  list.forEach(i=>{const r=getRate(i.id);const s=stock(i.id);if(r.purchase||r.sell)itemsWithRate++;totalPurchaseVal+=s*(r.purchase||0);totalSellVal+=s*(r.sell||0);});
+  const sumEl=document.getElementById('sv-summary');
+  if(sumEl)sumEl.innerHTML='<div class="rep-metric"><div class="rl">Total Items</div><div class="rv" style="color:#185FA5">'+list.length+'</div></div>'+'<div class="rep-metric"><div class="rl">Items with Rate</div><div class="rv" style="color:#185FA5">'+itemsWithRate+'</div></div>'+'<div class="rep-metric"><div class="rl">Purchase Value</div><div class="rv" style="color:#2e7d32">₹'+totalPurchaseVal.toLocaleString('en-IN',{maximumFractionDigits:0})+'</div></div>'+'<div class="rep-metric"><div class="rl">Sell Value</div><div class="rv" style="color:#e65100">₹'+totalSellVal.toLocaleString('en-IN',{maximumFractionDigits:0})+'</div></div>';
+  const tbl=document.getElementById('sv-table');
+  if(!list.length){tbl.innerHTML='<div class="empty">No items found.</div>';return;}
+  tbl.innerHTML='<table><thead><tr><th>Item</th><th>Brand</th><th>Stock</th><th>Unit</th><th>Purchase Rate (₹)</th><th>Sell Rate (₹)</th><th>Purchase Value</th><th>Sell Value</th><th></th></tr></thead><tbody>'+
+    list.map((i,idx)=>{const r=getRate(i.id);const s=stock(i.id);const pv=s*(r.purchase||0);const sv=s*(r.sell||0);
+      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td style="font-weight:600">'+i.name+'</td><td style="color:#185FA5">'+(i.brand||'--')+'</td><td style="font-weight:700">'+s+'</td><td>'+i.unit+'</td><td><input id="sv-p-'+i.id+'" type="number" value="'+(r.purchase||'')+'" placeholder="0" style="width:90px;padding:5px 7px;border:1px solid #ddd;border-radius:5px;font-size:12px" min="0" step="0.01"/></td><td><input id="sv-s-'+i.id+'" type="number" value="'+(r.sell||'')+'" placeholder="0" style="width:90px;padding:5px 7px;border:1px solid #ddd;border-radius:5px;font-size:12px" min="0" step="0.01"/></td><td style="font-weight:700;color:#2e7d32">₹'+pv.toLocaleString('en-IN',{maximumFractionDigits:0})+'</td><td style="font-weight:700;color:#e65100">₹'+sv.toLocaleString('en-IN',{maximumFractionDigits:0})+'</td><td><button class="btn sm primary" onclick="saveRate(\''+i.id+'\')">Save</button></td></tr>';
+    }).join('')+'</tbody></table>';
+}
+function exportStockValueXLSX(){
+  const brandF=document.getElementById('sv-brand')?.value||'';
+  let list=brandF?items.filter(i=>(i.brand||'Unknown Brand')===brandF):[...items];
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  const ws_data=[['Item','Brand','Stock','Unit','Purchase Rate','Sell Rate','Purchase Value','Sell Value']];
+  list.forEach(i=>{const r=getRate(i.id);const s=stock(i.id);ws_data.push([i.name,i.brand||'',s,i.unit,r.purchase||0,r.sell||0,s*(r.purchase||0),s*(r.sell||0)]);});
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);XLSX.utils.book_append_sheet(wb,ws,'Stock Value');XLSX.writeFile(wb,'SGE-SSE-StockValue-'+today()+'.xlsx');toast('Stock value exported!','ok');
+}
+
+// ── DAMAGE / RETURN ───────────────────────────────────────────────
+let dmgSelItemId='';
+function brandChangeDmg(){
+  const brand=document.getElementById('dmg-brand').value;
+  const itemSel=document.getElementById('dmg-item');
+  itemSel.innerHTML='<option value="">-- Select Item --</option>';
+  const filtered=brand?items.filter(i=>(i.brand||'Unknown Brand')===brand):items;
+  filtered.sort((a,b)=>a.name.localeCompare(b.name)).forEach(i=>{
+    const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;
+    const o=document.createElement('option');o.value=i.id;o.textContent=i.name+' ('+i.unit+') -- Stock: '+s+(low?' ⚠':'');
+    if(low)o.style.color='#c62828';itemSel.appendChild(o);
+  });
+  document.getElementById('dmg-cur-stk').textContent='--';
+  dmgSelItemId='';
+}
+function itemChangeDmg(){
+  const itemId=document.getElementById('dmg-item').value;
+  dmgSelItemId=itemId;
+  if(!itemId){document.getElementById('dmg-cur-stk').textContent='--';return;}
+  const item=items.find(i=>i.id===itemId);if(!item)return;
+  const s=stock(itemId),low=s<=item.min_stock&&item.min_stock>0;
+  const stk=document.getElementById('dmg-cur-stk');
+  stk.textContent=s+' '+item.unit+(low?' ⚠':'');stk.style.color=low?'#c62828':'#2e7d32';
+}
+async function submitDmgRtn(){
+  if(!dmgSelItemId){toast('Select an item','err');return;}
+  const qty=parseFloat(document.getElementById('dmg-qty').value);
+  if(!qty||qty<=0){toast('Enter quantity','err');return;}
+  const entryType=document.getElementById('dmg-type').value;
+  const party=document.getElementById('dmg-party').value.trim();
+  const note=document.getElementById('dmg-note').value.trim();
+  const remarks=document.getElementById('dmg-remarks').value.trim();
+  const date=document.getElementById('dmg-date').value||today();
+  const operator=document.getElementById('dmg-operator').value.trim();
+  if(entryType==='DAMAGE'&&qty>stock(dmgSelItemId)){toast('Not enough stock for damage entry! Available: '+stock(dmgSelItemId),'err');return;}
+  const fullNote='['+entryType+'] '+(note||'')+(remarks?' | '+remarks:'');
+  if(!confirm(entryType+' entry for '+items.find(i=>i.id===dmgSelItemId)?.name+' x'+qty+'?\nThis will '+(entryType==='DAMAGE'?'REDUCE':'INCREASE')+' stock.'))return;
+  try{
+    const txn={item_id:dmgSelItemId,type:entryType==='DAMAGE'?'OUT':'IN',qty,date,note:fullNote};
+    if(party){if(entryType==='DAMAGE')txn.customer=party;else txn.supplier=party;}
+    if(operator)txn.operator=operator;
+    await api('POST','transactions',txn);
+    toast(entryType+' recorded! Stock '+(entryType==='DAMAGE'?'reduced':'increased')+' by '+qty,'ok');
+    document.getElementById('dmg-qty').value='';document.getElementById('dmg-note').value='';document.getElementById('dmg-remarks').value='';
+    load(true);renderDmgHistory();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+function renderDmgHistory(){
+  const search=(document.getElementById('dmg-search')?.value||'').toLowerCase();
+  const typeF=document.getElementById('dmg-hist-type')?.value||'';
+  const tbl=document.getElementById('dmg-hist-table');
+  let list=txns.filter(t=>(t.note||'').startsWith('[DAMAGE]')||(t.note||'').startsWith('[RETURN]'));
+  if(typeF==='DAMAGE')list=list.filter(t=>(t.note||'').startsWith('[DAMAGE]'));
+  if(typeF==='RETURN')list=list.filter(t=>(t.note||'').startsWith('[RETURN]'));
+  if(search)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return (it?it.name:'').toLowerCase().includes(search)||(t.note||'').toLowerCase().includes(search);});
+  list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
+  if(!list.length){tbl.innerHTML='<div class="empty">No damage or return entries found.</div>';return;}
+  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Note / Remarks</th><th>By</th></tr></thead><tbody>'+
+    list.map((t,idx)=>{const it=items.find(i=>i.id===t.item_id);const isDmg=(t.note||'').startsWith('[DAMAGE]');
+      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
 // ── INIT ──────────────────────────────────────────────────────────
 document.getElementById('si-date').value=today();
 if(DEFAULT_OPERATOR){const siOp=document.getElementById('si-operator');const soOp=document.getElementById('so-operator');if(siOp)siOp.value=DEFAULT_OPERATOR;if(soOp)soOp.value=DEFAULT_OPERATOR;}
 document.getElementById('so-date').value=today();
 document.getElementById('tr-date').value=today();
+const dmgDateEl=document.getElementById('dmg-date');if(dmgDateEl)dmgDateEl.value=today();
 load();
 setInterval(()=>{
   if(document.visibilityState!=='visible') return;
