@@ -2392,9 +2392,10 @@ function renderDmgHistory(){
   if(search)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return (it?it.name:'').toLowerCase().includes(search)||(t.note||'').toLowerCase().includes(search);});
   list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
   if(!list.length){tbl.innerHTML='<div class="empty">No damage or return entries found.</div>';return;}
-  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Note / Remarks</th><th>By</th></tr></thead><tbody>'+
+  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note / Remarks</th><th>By</th></tr></thead><tbody>'+
     list.map((t,idx)=>{const it=items.find(i=>i.id===t.item_id);const isDmg=(t.note||'').startsWith('[DAMAGE]');
-      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
+      const party=isDmg?(t.customer||t.supplier||''):(t.supplier||t.customer||'');
+      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-weight:600;color:#5d4037">'+(party||'--')+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
     }).join('')+'</tbody></table>';
 }
 
