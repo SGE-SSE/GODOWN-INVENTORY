@@ -165,10 +165,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('pipeclosing',this)">🪠 Pipe Stock</button>
   <button onclick="go('lowstock',this)">⚠ Low Stock</button>
   <button onclick="go('partyledger',this)">👤 Party Ledger</button>
-  <button onclick="go('pending',this)">💳 Pending</button>
+  <button onclick="go('pending',this)" id="pendingNavBtn" style="display:none">💳 Pending</button>
   <button onclick="go('stockvalue',this)">💰 Stock Value</button>
   <button onclick="go('dmgrtn',this)">🔧 DMG/RTN</button>
-  <button onclick="go('bills',this)" id="billsTab">🔔 Bills Due</button>
+  <button onclick="go('bills',this)" id="billsTab" style="display:none">🔔 Bills Due</button>
 </nav>
 
 <div class="con">
@@ -711,6 +711,8 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
 <!-- PENDING / CREDIT -->
 <div id="page-pending" class="page">
+  <div id="pendingAdminNotice" class="card" style="text-align:center;padding:32px;display:none"><span style="font-size:32px">🔒</span><div style="font-size:16px;font-weight:700;margin:10px 0">Admin Access Only</div><div style="color:#888;font-size:13px">Please login as admin to view Pending / Credit data.</div></div>
+  <div id="pendingAdminContent">
   <div class="card">
     <div class="card-title">💳 Pending / Credit Tracker</div>
     <div class="sbar" style="flex-wrap:wrap;gap:8px">
@@ -722,6 +724,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
   <div id="pend-summary" class="rep-grid" style="margin-bottom:14px"></div>
   <div class="card"><div class="tw" id="pend-table"><div class="loading">Loading...</div></div></div>
+  </div><!-- /pendingAdminContent -->
 </div>
 
 <!-- STOCK VALUE -->
@@ -885,7 +888,7 @@ async function load(silent){
   try{
     const allItems=await api('GET','item_stock_fast?select=*&order=name');
     // Always request credit_days + is_paid — if columns don't exist Supabase just ignores them
-    const allTxns=await api('GET','transactions?select=*,credit_days,is_paid&order=created_at.desc&limit=500');
+    const allTxns=await api('GET','transactions?select=id,item_id,type,qty,date,note,supplier,customer,operator,created_at,credit_days,is_paid&order=created_at.desc&limit=500');
     items=allItems.filter(i=>(i.location||'GODOWN')===currentLoc);
     const ids=new Set(items.map(i=>i.id));
     txns=allTxns.filter(t=>ids.has(t.item_id));
@@ -915,6 +918,10 @@ function renderAll(){
   const hasQ=(siQueue.length>0)||(soQueue.length>0)||(dmgQueue.length>0);
   if(!hasQ){fillSIBrands();fillSOBrands();}
   document.getElementById('addItemCard').style.display=isAdmin?'block':'none';
+  const pendBtn=document.getElementById('pendingNavBtn');if(pendBtn)pendBtn.style.display=isAdmin?'':'none';
+  const billsBtn=document.getElementById('billsTab');if(billsBtn)billsBtn.style.display=isAdmin?'':'none';
+  const pendContent=document.getElementById('pendingAdminContent');if(pendContent)pendContent.style.display=isAdmin?'':'none';
+  const pendNotice=document.getElementById('pendingAdminNotice');if(pendNotice)pendNotice.style.display=isAdmin?'none':'block';
   document.getElementById('siForm').style.display=isAdmin?'block':'none';
   document.getElementById('siAdminNotice').style.display=isAdmin?'none':'block';
   document.getElementById('soForm').style.display=isAdmin?'block':'none';
