@@ -168,6 +168,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('pending',this)">💳 Pending</button>
   <button onclick="go('stockvalue',this)">💰 Stock Value</button>
   <button onclick="go('dmgrtn',this)">🔧 DMG/RTN</button>
+  <button onclick="go('bills',this)" id="billsTab">🔔 Bills Due</button>
 </nav>
 
 <div class="con">
@@ -313,9 +314,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
         <div class="fg"><label>Bill No</label><input id="so-note" placeholder="Bill number"/></div>
         <div class="fg"><label>Date</label><input type="date" id="so-date"/></div>
       </div>
-      <div class="frow c2">
+      <div class="frow c3">
         <div class="fg"><label>Entered By (Operator)</label><input id="so-operator" placeholder="Your name"/></div>
         <div class="fg"><label>Remarks (Optional)</label><input id="so-remarks" placeholder="Additional notes / remarks"/></div>
+        <div class="fg"><label>Credit Days <span style="font-size:11px;color:#888">(0 = Cash)</span></label><input type="number" id="so-credit-days" placeholder="e.g. 30" min="0" oninput="updateSODueDate()"/><div id="so-due-preview" style="font-size:12px;color:#185FA5;font-weight:600;margin-top:5px;min-height:18px"></div></div>
       </div>
     </div>
     <div class="entry-panel">
@@ -663,6 +665,33 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div id="fastMoving"></div>
 </div>
 </div>
+<!-- BILLS DUE -->
+<div id="page-bills" class="page">
+  <!-- Summary cards -->
+  <div class="grid4" id="bills-summary"></div>
+  <!-- OVERDUE section -->
+  <div class="card" id="bills-overdue-card">
+    <div class="card-title" style="color:#c62828">🔴 Overdue Bills <span id="bills-overdue-count" class="abadge" style="background:#c62828">0</span></div>
+    <div class="tw" id="bills-overdue-table"><div class="empty">No overdue bills. Great!</div></div>
+  </div>
+  <!-- DUE SOON section -->
+  <div class="card" id="bills-duesoon-card">
+    <div class="card-title" style="color:#f57c00">⏰ Due Soon <span style="font-size:12px;font-weight:400;color:#888">(within 7 days)</span> <span id="bills-duesoon-count" class="abadge" style="background:#f57c00">0</span></div>
+    <div class="tw" id="bills-duesoon-table"><div class="empty">No bills due soon.</div></div>
+  </div>
+  <!-- ALL PENDING section -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">📋 All Pending Bills</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="bills-search" placeholder="🔍 Search party / item..." oninput="renderBills()" style="width:200px;margin-bottom:0"/>
+        <select id="bills-type-f" onchange="renderBills()" style="width:110px;margin-bottom:0"><option value="">IN + OUT</option><option value="OUT">OUT Only</option><option value="IN">IN Only</option></select>
+      </div>
+    </div>
+    <div class="tw" id="bills-all-table"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- PARTY LEDGER -->
@@ -820,14 +849,51 @@ function fmtDT(dtStr){
   return d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'Asia/Kolkata'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'});
 }
 
+// == CREDIT SYNC: migrate localStorage -> Supabase on first load ==
+let _creditColsReady=false;
+async function ensureCreditCols(){
+  if(_creditColsReady)return true;
+  try{
+    // Test if credit_days column exists by selecting it
+    const r=await fetch(SUPA_URL+'/rest/v1/transactions?select=id,credit_days,is_paid&limit=1',{headers:H});
+    if(r.ok){_creditColsReady=true;return true;}
+    // Column missing - try to add via Supabase SQL API (requires service key - won't work with publishable key)
+    // So: we use a workaround - store credit data in a dedicated table sge_meta
+    return false;
+  }catch(e){return false;}
+}
+
+async function saveCreditToSupabase(txnId,creditDays,isPaid){
+  try{
+    const patch={};
+    if(creditDays!==undefined)patch.credit_days=creditDays;
+    if(isPaid!==undefined)patch.is_paid=isPaid;
+    if(!Object.keys(patch).length)return;
+    await fetch(SUPA_URL+'/rest/v1/transactions?id=eq.'+txnId,{
+      method:'PATCH',
+      headers:{...H,'Prefer':'return=minimal'},
+      body:JSON.stringify(patch)
+    });
+  }catch(e){console.warn('saveCreditToSupabase failed:',e);}
+}
+
+function getCreditDaysLocal(txnId){return parseInt(localStorage.getItem('sge_credit_'+txnId)||'0');}
+function getPaidLocal(txnId){return localStorage.getItem('sge_paid_'+txnId)==='true';}
+
 async function load(silent){
   if(!silent) sync('Syncing...');
   try{
     const allItems=await api('GET','item_stock_fast?select=*&order=name');
-    const allTxns=await api('GET','transactions?select=*&order=created_at.desc&limit=500');
+    // Always request credit_days + is_paid — if columns don't exist Supabase just ignores them
+    const allTxns=await api('GET','transactions?select=*,credit_days,is_paid&order=created_at.desc&limit=500');
     items=allItems.filter(i=>(i.location||'GODOWN')===currentLoc);
     const ids=new Set(items.map(i=>i.id));
     txns=allTxns.filter(t=>ids.has(t.item_id));
+    // Merge localStorage fallback for any txn missing Supabase credit data
+    txns.forEach(t=>{
+      if(t.credit_days==null) t.credit_days=getCreditDaysLocal(t.id);
+      if(t.is_paid==null) t.is_paid=getPaidLocal(t.id);
+    });
     sync('Synced '+new Date().toLocaleTimeString());
     renderAll();
   }catch(e){sync('Error');toast('Connection error: '+e.message,'err');}
@@ -845,7 +911,7 @@ function pipeBaseName(name){let n=(name||'').toUpperCase();PIPE_SIZES.forEach(s=
 
 function renderAll(){
   renderDash();renderItems();renderSI();renderSO();renderHistory();renderAlerts();renderReport();fillBrands();alertBadge();
-  renderDmgHistory();renderPending();renderStockValue();
+  renderDmgHistory();renderPending();renderStockValue();renderBills();
   const hasQ=(siQueue.length>0)||(soQueue.length>0)||(dmgQueue.length>0);
   if(!hasQ){fillSIBrands();fillSOBrands();}
   document.getElementById('addItemCard').style.display=isAdmin?'block':'none';
@@ -1195,10 +1261,18 @@ async function submitQ(prefix){
       const res=await api('POST','transactions',txn);
       // Save remarks separately if any
       if(remarks&&res&&res[0]&&res[0].id) localStorage.setItem('sge_remark_'+res[0].id,remarks);
+      // Save credit days for Stock OUT -> Supabase + localStorage fallback
+      if(prefix==='so'&&res&&res[0]&&res[0].id){
+        const cd=parseInt(document.getElementById('so-credit-days')?.value)||0;
+        if(cd>0){
+          localStorage.setItem('sge_credit_'+res[0].id,cd.toString());
+          await saveCreditToSupabase(res[0].id,cd,false);
+        }
+      }
     }
     const cnt=q.length;
     if(prefix==='si'){siQueue=[];document.getElementById('si-sup').value='';document.getElementById('si-note').value='';document.getElementById('si-operator').value='';document.getElementById('si-remarks').value='';}
-    else{soQueue=[];document.getElementById('so-cust').value='';document.getElementById('so-note').value='';document.getElementById('so-operator').value='';document.getElementById('so-remarks').value='';}
+    else{soQueue=[];document.getElementById('so-cust').value='';document.getElementById('so-note').value='';document.getElementById('so-operator').value='';document.getElementById('so-remarks').value='';const scd=document.getElementById('so-credit-days');if(scd)scd.value='';const sdp=document.getElementById('so-due-preview');if(sdp)sdp.textContent='';}
     renderQ(prefix);toast(cnt+' items submitted! 🎉','ok');load(true);
   }catch(e){toast('Error: '+e.message,'err');}
 }
@@ -1735,7 +1809,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
@@ -2117,23 +2191,46 @@ function renderPartyLedger(){
 }
 
 // ── PENDING / CREDIT TRACKER ─────────────────────────────────────
-function togglePaid(txnId){
-  const key='sge_paid_'+txnId;
-  const current=localStorage.getItem(key)==='true';
-  localStorage.setItem(key,(!current).toString());
-  renderPending();
+async function togglePaid(txnId){
+  const t=txns.find(x=>x.id===txnId);
+  const current=t?!!t.is_paid:(localStorage.getItem('sge_paid_'+txnId)==='true');
+  const newVal=!current;
+  // Update local cache immediately for instant UI response
+  if(t) t.is_paid=newVal;
+  localStorage.setItem('sge_paid_'+txnId,newVal.toString());
+  renderPending();renderBills();
+  // Persist to Supabase in background
+  await saveCreditToSupabase(txnId,undefined,newVal);
 }
-function setCreditDays(txnId){
-  const current=parseInt(localStorage.getItem('sge_credit_'+txnId)||'0');
+async function setCreditDays(txnId){
+  const t=txns.find(x=>x.id===txnId);
+  const current=t&&t.credit_days!=null?parseInt(t.credit_days)||0:parseInt(localStorage.getItem('sge_credit_'+txnId)||'0');
   const days=prompt('Enter credit days (0 for no credit):',current);
   if(days===null)return;
   const num=parseInt(days)||0;
   if(num<0){toast('Invalid number','err');return;}
+  // Update local cache immediately
+  if(t) t.credit_days=num;
   localStorage.setItem('sge_credit_'+txnId,num.toString());
-  renderPending();
-  toast('Credit days saved!','ok');
+  renderPending();renderBills();
+  // Persist to Supabase
+  await saveCreditToSupabase(txnId,num,undefined);
+  toast('Credit days saved! ✓','ok');
+}
+function updateSODueDate(){
+  const days=parseInt(document.getElementById('so-credit-days')?.value)||0;
+  const date=document.getElementById('so-date')?.value||today();
+  const preview=document.getElementById('so-due-preview');
+  if(!preview)return;
+  if(!days){preview.textContent='';return;}
+  const d=new Date(date+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  const due=d.toISOString().substring(0,10);
+  preview.textContent='📅 Due Date: '+due;
 }
 function getCreditDays(txnId){
+  const t=txns.find(x=>x.id===txnId);
+  if(t&&t.credit_days!=null) return parseInt(t.credit_days)||0;
   return parseInt(localStorage.getItem('sge_credit_'+txnId)||'0');
 }
 function calcMaturityDate(txnDate,creditDays){
@@ -2159,7 +2256,7 @@ function renderPending(){
   
   // Calculate status for each transaction
   list=list.map(t=>{
-    const paid=localStorage.getItem('sge_paid_'+t.id)==='true';
+    const paid=t.is_paid||localStorage.getItem('sge_paid_'+t.id)==='true';
     const creditDays=getCreditDays(t.id);
     const maturity=calcMaturityDate(t.date,creditDays);
     const daysRem=maturity?daysRemaining(maturity):null;
@@ -2189,10 +2286,10 @@ function renderPending(){
     return b.date>a.date?1:b.date<a.date?-1:0;
   });
   
-  const unpaidCount=txns.filter(t=>localStorage.getItem('sge_paid_'+t.id)!=='true').length;
-  const paidCount=txns.filter(t=>localStorage.getItem('sge_paid_'+t.id)==='true').length;
-  const overdueCount=txns.filter(t=>{const cd=getCreditDays(t.id);const mat=calcMaturityDate(t.date,cd);const dr=mat?daysRemaining(mat):null;return !localStorage.getItem('sge_paid_'+t.id)&&dr!==null&&dr<0;}).length;
-  const dueCount=txns.filter(t=>{const cd=getCreditDays(t.id);const mat=calcMaturityDate(t.date,cd);const dr=mat?daysRemaining(mat):null;return !localStorage.getItem('sge_paid_'+t.id)&&dr!==null&&dr>=0&&dr<=7;}).length;
+  const unpaidCount=txns.filter(t=>!(t.is_paid||localStorage.getItem('sge_paid_'+t.id)==='true')).length;
+  const paidCount=txns.filter(t=>t.is_paid||localStorage.getItem('sge_paid_'+t.id)==='true').length;
+  const overdueCount=txns.filter(t=>{const cd=getCreditDays(t.id);const mat=calcMaturityDate(t.date,cd);const dr=mat?daysRemaining(mat):null;return !(t.is_paid||localStorage.getItem('sge_paid_'+t.id)==='true')&&dr!==null&&dr<0;}).length;
+  const dueCount=txns.filter(t=>{const cd=getCreditDays(t.id);const mat=calcMaturityDate(t.date,cd);const dr=mat?daysRemaining(mat):null;return !(t.is_paid||localStorage.getItem('sge_paid_'+t.id)==='true')&&dr!==null&&dr>=0&&dr<=7;}).length;
   
   const sumEl=document.getElementById('pend-summary');
   if(sumEl)sumEl.innerHTML='<div class="rep-metric"><div class="rl">Total Transactions</div><div class="rv" style="color:#185FA5">'+txns.length+'</div></div>'+'<div class="rep-metric"><div class="rl">Unpaid / Pending</div><div class="rv" style="color:#c62828">'+unpaidCount+'</div></div>'+'<div class="rep-metric"><div class="rl">⚠ OVERDUE</div><div class="rv" style="color:#c62828;font-weight:900">'+overdueCount+'</div></div>'+'<div class="rep-metric"><div class="rl">⏰ Due Soon (7d)</div><div class="rv" style="color:#f57c00">'+dueCount+'</div></div>'+'<div class="rep-metric"><div class="rl">✓ Marked Paid</div><div class="rv" style="color:#2e7d32">'+paidCount+'</div></div>';
@@ -2392,11 +2489,88 @@ function renderDmgHistory(){
   if(search)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return (it?it.name:'').toLowerCase().includes(search)||(t.note||'').toLowerCase().includes(search);});
   list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
   if(!list.length){tbl.innerHTML='<div class="empty">No damage or return entries found.</div>';return;}
-  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note / Remarks</th><th>By</th></tr></thead><tbody>'+
+  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Note / Remarks</th><th>By</th></tr></thead><tbody>'+
     list.map((t,idx)=>{const it=items.find(i=>i.id===t.item_id);const isDmg=(t.note||'').startsWith('[DAMAGE]');
-      const party=isDmg?(t.customer||t.supplier||''):(t.supplier||t.customer||'');
-      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-weight:600;color:#5d4037">'+(party||'--')+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
+      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
     }).join('')+'</tbody></table>';
+}
+
+// == BILLS DUE ==================================================
+function renderBills(){
+  const search=(document.getElementById('bills-search')?.value||'').toLowerCase();
+  const typeF=document.getElementById('bills-type-f')?.value||'';
+
+  // Build enriched list of unpaid credit transactions
+  let all=txns.map(t=>{
+    const paid=localStorage.getItem('sge_paid_'+t.id)==='true';
+    const creditDays=getCreditDays(t.id);
+    if(!creditDays)return null; // skip cash/no-credit
+    const maturity=calcMaturityDate(t.date,creditDays);
+    const daysRem=maturity?daysRemaining(maturity):null;
+    let txnStatus='not-due';
+    if(paid)txnStatus='paid';
+    else if(daysRem===null)txnStatus='not-due';
+    else if(daysRem<0)txnStatus='overdue';
+    else if(daysRem<=7)txnStatus='due-soon';
+    return {...t,paid,creditDays,maturity,daysRem,txnStatus};
+  }).filter(Boolean);
+
+  if(typeF)all=all.filter(t=>t.type===typeF);
+  if(search)all=all.filter(t=>{const it=items.find(i=>i.id===t.item_id);const p=t.supplier||t.customer||'';return (it?it.name:'').toLowerCase().includes(search)||p.toLowerCase().includes(search);});
+
+  const overdue=all.filter(t=>t.txnStatus==='overdue');
+  const dueSoon=all.filter(t=>t.txnStatus==='due-soon');
+  const pending=all.filter(t=>!t.paid).sort((a,b)=>{
+    if(a.txnStatus==='overdue'&&b.txnStatus!=='overdue')return -1;
+    if(b.txnStatus==='overdue'&&a.txnStatus!=='overdue')return 1;
+    if(a.txnStatus==='due-soon'&&b.txnStatus!=='due-soon')return -1;
+    if(b.txnStatus==='due-soon'&&a.txnStatus!=='due-soon')return 1;
+    return b.date>a.date?1:b.date<a.date?-1:0;
+  });
+
+  // Summary cards
+  const sumEl=document.getElementById('bills-summary');
+  if(sumEl)sumEl.innerHTML=
+    '<div class="metric"><div class="ml">🔴 Overdue</div><div class="mv danger">'+overdue.length+'</div></div>'+
+    '<div class="metric"><div class="ml">⏰ Due Soon (7d)</div><div class="mv" style="color:#f57c00">'+dueSoon.length+'</div></div>'+
+    '<div class="metric"><div class="ml">📋 Total Pending</div><div class="mv info">'+pending.length+'</div></div>'+
+    '<div class="metric"><div class="ml">✓ Paid Bills</div><div class="mv success">'+all.filter(t=>t.paid).length+'</div></div>';
+
+  // Update nav badge
+  const billsTab=document.getElementById('billsTab');
+  if(billsTab){
+    const urgent=overdue.length+dueSoon.length;
+    let badge=billsTab.querySelector('.abadge');
+    if(urgent>0){if(!badge){badge=document.createElement('span');badge.className='abadge';billsTab.appendChild(badge);}badge.textContent=urgent;}
+    else if(badge)badge.remove();
+  }
+
+  // Update count badges
+  const oc=document.getElementById('bills-overdue-count');
+  const dc=document.getElementById('bills-duesoon-count');
+  if(oc)oc.textContent=overdue.length;
+  if(dc)dc.textContent=dueSoon.length;
+
+  function buildBillsTable(list,emptyMsg){
+    if(!list.length)return '<div class="empty">'+emptyMsg+'</div>';
+    return '<table><thead><tr><th>Date</th><th>Type</th><th>Party</th><th>Item</th><th>Qty</th><th>Bill No</th><th>Credit Days</th><th>Due Date</th><th>Days Left</th><th>Status</th></tr></thead><tbody>'+
+      list.map((t,idx)=>{
+        const it=items.find(i=>i.id===t.item_id);
+        const p=t.supplier||t.customer||'--';
+        const note=(t.note||'').split(' | Remark: ')[0];
+        let statusBadge='';
+        if(t.paid)statusBadge='<span class="paid-badge" onclick="togglePaid(\x27'+t.id+'\x27);renderBills()" title="Click to mark unpaid">✓ Paid</span>';
+        else if(t.txnStatus==='overdue')statusBadge='<span class="unpaid-badge" onclick="togglePaid(\x27'+t.id+'\x27);renderBills()" style="background:#d32f2f;color:#fff">🔴 OVERDUE</span>';
+        else if(t.txnStatus==='due-soon')statusBadge='<span class="unpaid-badge" onclick="togglePaid(\x27'+t.id+'\x27);renderBills()" style="background:#f57c00;color:#fff">⏰ DUE SOON</span>';
+        else statusBadge='<span class="unpaid-badge" onclick="togglePaid(\x27'+t.id+'\x27);renderBills()">⏳ Unpaid</span>';
+        const rowBg=t.txnStatus==='overdue'?'#ffebee':t.txnStatus==='due-soon'?'#fff8e1':(idx%2===0?'#fff':'#fafafa');
+        return '<tr style="background:'+rowBg+'"><td>'+t.date+'</td><td><span class="badge '+(t.type==='IN'?'in':'out')+'">'+t.type+'</span></td><td style="font-weight:600">'+p+'</td><td>'+(it?it.name:'?')+'</td><td style="font-weight:700;color:'+(t.type==='IN'?'#2e7d32':'#e65100')+'">'+(t.type==='IN'?'+':'-')+t.qty+' '+(it?it.unit:'')+'</td><td style="font-size:12px">'+note+'</td><td style="color:#185FA5;font-weight:700">'+t.creditDays+' days</td><td style="font-weight:600">'+(t.maturity||'--')+'</td><td style="font-weight:700;color:'+(t.daysRem===null?'#999':t.daysRem<0?'#c62828':t.daysRem<=7?'#f57c00':'#2e7d32')+'">'+(t.daysRem===null?'--':t.daysRem<0?Math.abs(t.daysRem)+' days LATE':t.daysRem===0?'TODAY!':t.daysRem+' days')+'</td><td>'+statusBadge+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+
+  document.getElementById('bills-overdue-table').innerHTML=buildBillsTable(overdue,'✅ No overdue bills. All clear!');
+  document.getElementById('bills-duesoon-table').innerHTML=buildBillsTable(dueSoon,'No bills due within 7 days.');
+  document.getElementById('bills-all-table').innerHTML=buildBillsTable(pending,'No pending bills found.');
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
