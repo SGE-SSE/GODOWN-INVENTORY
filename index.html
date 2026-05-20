@@ -168,6 +168,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('pending',this)" id="pendingNavBtn" style="display:none">💳 Pending</button>
   <button onclick="go('stockvalue',this)">💰 Stock Value</button>
   <button onclick="go('dmgrtn',this)">🔧 DMG/RTN</button>
+  <button onclick="go('bills',this)" id="billsTab" style="display:none">🔔 Bills Due</button>
 </nav>
 
 <div class="con">
@@ -663,6 +664,33 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div id="fastMoving"></div>
 </div>
 </div>
+<!-- BILLS DUE PAGE -->
+<div id="page-bills" class="page">
+  <div class="grid4" id="bills-summary"></div>
+  <div class="card">
+    <div class="card-title" style="color:#c62828">🔴 Overdue Bills <span id="bills-overdue-count" class="abadge" style="background:#c62828">0</span></div>
+    <div class="tw" id="bills-overdue-table"><div class="empty">No overdue bills. Great!</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:#f57c00">⏰ Due Soon <span style="font-size:12px;font-weight:400;color:#888">(within 7 days)</span> <span id="bills-duesoon-count" class="abadge" style="background:#f57c00">0</span></div>
+    <div class="tw" id="bills-duesoon-table"><div class="empty">No bills due soon.</div></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <div class="card-title" style="margin-bottom:0">📋 All Pending Bills</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="bills-search" placeholder="Search party / bill no..." oninput="renderBills()" style="width:200px;margin-bottom:0"/>
+        <select id="bills-type-f" onchange="renderBills()" style="width:110px;margin-bottom:0">
+          <option value="">IN + OUT</option>
+          <option value="OUT">OUT Only</option>
+          <option value="IN">IN Only</option>
+        </select>
+      </div>
+    </div>
+    <div class="tw" id="bills-all-table"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- PARTY LEDGER -->
@@ -863,7 +891,7 @@ function pipeBaseName(name){let n=(name||'').toUpperCase();PIPE_SIZES.forEach(s=
 
 function renderAll(){
   renderDash();renderItems();renderSI();renderSO();renderHistory();renderAlerts();renderReport();fillBrands();alertBadge();
-  renderDmgHistory();renderPending();renderStockValue();
+  renderDmgHistory();renderPending();renderStockValue();renderBills();
   const hasQ=(siQueue.length>0)||(soQueue.length>0)||(dmgQueue.length>0);
   if(!hasQ){fillSIBrands();fillSOBrands();}
   document.getElementById('addItemCard').style.display=isAdmin?'block':'none';
@@ -1760,7 +1788,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
@@ -2486,6 +2514,93 @@ function renderDmgHistory(){
     list.map((t,idx)=>{const it=items.find(i=>i.id===t.item_id);const isDmg=(t.note||'').startsWith('[DAMAGE]');
       return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
     }).join('')+'</tbody></table>';
+}
+
+// == BILLS DUE PAGE ==
+function renderBills(){
+  const search=(document.getElementById('bills-search')?.value||'').toLowerCase();
+  const typeF=document.getElementById('bills-type-f')?.value||'';
+
+  let txnList=[...txns];
+  if(typeF)txnList=txnList.filter(t=>t.type===typeF);
+  if(search)txnList=txnList.filter(t=>{
+    const it=items.find(i=>i.id===t.item_id);
+    const p=t.supplier||t.customer||'';
+    const note=(t.note||'').split(' | Remark: ')[0];
+    return p.toLowerCase().includes(search)||note.toLowerCase().includes(search)||(it?it.name:'').toLowerCase().includes(search);
+  });
+
+  // Group into bills and compute status
+  const allBillsFull=groupIntoBills(txnList).map(b=>{
+    const mat=calcMaturityDate(b.date,b.creditDays);
+    const daysRem=mat?daysRemaining(mat):null;
+    return {...b,maturity:mat,daysRem,txnStatus:billStatus(b)};
+  });
+
+  const overdue=allBillsFull.filter(b=>b.txnStatus==='overdue');
+  const dueSoon=allBillsFull.filter(b=>b.txnStatus==='due-soon');
+  const pending=allBillsFull.filter(b=>!b.paid&&b.creditDays>0);
+  const allBillsAll=groupIntoBills(txns).map(b=>({...b,txnStatus:billStatus(b)}));
+
+  // Update nav badge
+  const billsTab=document.getElementById('billsTab');
+  if(billsTab){
+    const urgent=allBillsAll.filter(b=>b.txnStatus==='overdue'||b.txnStatus==='due-soon').length;
+    let badge=billsTab.querySelector('.abadge');
+    if(urgent>0){if(!badge){badge=document.createElement('span');badge.className='abadge';badge.style.background='#c62828';billsTab.appendChild(badge);}badge.textContent=urgent;}
+    else if(badge)badge.remove();
+  }
+
+  // Update section counts
+  const oc=document.getElementById('bills-overdue-count');
+  const dc=document.getElementById('bills-duesoon-count');
+  if(oc)oc.textContent=overdue.length;
+  if(dc)dc.textContent=dueSoon.length;
+
+  // Summary cards
+  const sumEl=document.getElementById('bills-summary');
+  if(sumEl)sumEl.innerHTML=
+    '<div class="metric"><div class="ml">🔴 Overdue</div><div class="mv" style="color:#c62828;font-weight:900">'+allBillsAll.filter(b=>b.txnStatus==='overdue').length+'</div></div>'+
+    '<div class="metric"><div class="ml">⏰ Due Soon (7d)</div><div class="mv" style="color:#f57c00">'+allBillsAll.filter(b=>b.txnStatus==='due-soon').length+'</div></div>'+
+    '<div class="metric"><div class="ml">📋 Total Pending</div><div class="mv" style="color:#185FA5">'+allBillsAll.filter(b=>!b.paid&&b.creditDays>0).length+'</div></div>'+
+    '<div class="metric"><div class="ml">✓ Paid Bills</div><div class="mv" style="color:#2e7d32">'+allBillsAll.filter(b=>b.paid).length+'</div></div>';
+
+  function buildTable(list, emptyMsg){
+    if(!list.length)return '<div class="empty">'+emptyMsg+'</div>';
+    const rows=list.map((b,idx)=>{
+      const rowBg=b.txnStatus==='overdue'?'#ffebee':b.txnStatus==='due-soon'?'#fff3e0':(idx%2===0?'#fff':'#fafafa');
+      const ek=b.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const itemsList=b.rows.map(r=>
+        '<div style="font-size:12px;padding:2px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;gap:8px">'+
+        '<span style="font-weight:600">'+r.name+'</span>'+
+        '<span style="color:'+(b.type==='IN'?'#2e7d32':'#e65100')+';font-weight:700;white-space:nowrap">'+(b.type==='IN'?'+':'-')+r.qty+' '+r.unit+'</span>'+
+        '</div>').join('');
+      let sb='';
+      if(b.paid)sb='<span class="paid-badge" onclick="toggleBillPaid(\x27'+ek+'\x27);renderBills()" title="Mark unpaid">Paid</span>';
+      else if(b.txnStatus==='overdue')sb='<span class="unpaid-badge" onclick="toggleBillPaid(\x27'+ek+'\x27);renderBills()" style="background:#d32f2f;color:#fff">OVERDUE</span>';
+      else if(b.txnStatus==='due-soon')sb='<span class="unpaid-badge" onclick="toggleBillPaid(\x27'+ek+'\x27);renderBills()" style="background:#f57c00;color:#fff">DUE SOON</span>';
+      else sb='<span class="unpaid-badge" onclick="toggleBillPaid(\x27'+ek+'\x27);renderBills()">Unpaid</span>';
+      return '<tr style="background:'+rowBg+'">'+
+        '<td>'+b.date+'</td>'+
+        '<td><span class="badge '+(b.type==='IN'?'in':'out')+'">'+b.type+'</span></td>'+
+        '<td style="font-weight:700;color:#185FA5">'+b.party+'</td>'+
+        '<td style="font-weight:600">'+(b.billNo||'--')+'</td>'+
+        '<td style="min-width:160px">'+itemsList+'</td>'+
+        '<td style="color:#185FA5;font-weight:700">'+b.creditDays+' days</td>'+
+        '<td style="font-weight:600">'+(b.maturity||'--')+'</td>'+
+        '<td style="font-weight:700;color:'+(b.daysRem===null?'#999':b.daysRem<0?'#c62828':b.daysRem<=7?'#f57c00':'#2e7d32')+'">'+(b.daysRem===null?'--':b.daysRem<0?Math.abs(b.daysRem)+' days LATE':b.daysRem===0?'TODAY!':b.daysRem+' days')+'</td>'+
+        '<td>'+sb+'</td>'+
+        '</tr>';
+    }).join('');
+    return '<table><thead><tr><th>Date</th><th>Type</th><th>Party</th><th>Bill/Ref No</th><th>Items</th><th>Credit Days</th><th>Due Date</th><th>Days Left</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+
+  const ovEl=document.getElementById('bills-overdue-table');
+  const dsEl=document.getElementById('bills-duesoon-table');
+  const allEl=document.getElementById('bills-all-table');
+  if(ovEl)ovEl.innerHTML=buildTable(overdue,'No overdue bills. All clear!');
+  if(dsEl)dsEl.innerHTML=buildTable(dueSoon,'No bills due within 7 days.');
+  if(allEl)allEl.innerHTML=buildTable(pending,'No pending bills found.');
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
