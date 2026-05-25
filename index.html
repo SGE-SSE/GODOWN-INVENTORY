@@ -312,11 +312,28 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <div class="frow c3">
         <div class="fg"><label>Customer / Party Name *</label><input id="so-cust" placeholder="Customer name"/></div>
         <div class="fg"><label>Bill No</label><input id="so-note" placeholder="Bill number"/></div>
-        <div class="fg"><label>Date</label><input type="date" id="so-date"/></div>
+        <div class="fg"><label>Date</label><input type="date" id="so-date" onchange="updateSODuePreview()"/></div>
       </div>
       <div class="frow c2">
         <div class="fg"><label>Entered By (Operator)</label><input id="so-operator" placeholder="Your name"/></div>
         <div class="fg"><label>Remarks (Optional)</label><input id="so-remarks" placeholder="Additional notes / remarks"/></div>
+      </div>
+      <div class="frow c3" style="margin-top:4px">
+        <div class="fg">
+          <label>💳 Payment Days (Credit)</label>
+          <input type="number" id="so-credit-days" placeholder="0 = cash" min="0" max="365" oninput="updateSODuePreview()" style="border:2px solid #e65100;font-weight:600"/>
+        </div>
+        <div class="fg" style="display:flex;align-items:flex-end">
+          <div id="so-due-preview" style="font-size:13px;font-weight:600;color:#555;padding:9px 0;line-height:1.4"></div>
+        </div>
+        <div class="fg" style="display:flex;align-items:flex-end;gap:6px;flex-wrap:wrap;padding-bottom:2px">
+          <button type="button" class="qty-btn" onclick="setSOCredit(7)">7d</button>
+          <button type="button" class="qty-btn" onclick="setSOCredit(15)">15d</button>
+          <button type="button" class="qty-btn" onclick="setSOCredit(30)">30d</button>
+          <button type="button" class="qty-btn" onclick="setSOCredit(45)">45d</button>
+          <button type="button" class="qty-btn" onclick="setSOCredit(60)">60d</button>
+          <button type="button" class="qty-btn" onclick="setSOCredit(90)">90d</button>
+        </div>
       </div>
     </div>
     <div class="entry-panel">
@@ -1301,9 +1318,21 @@ function renderSO(){
   const limit=soShowAll||hasF?all.length:SO_LIMIT;
   const list=all.slice(0,limit);
   if(sm){if(!soShowAll&&!hasF&&all.length>SO_LIMIT){sm.style.display='block';if(sc)sc.textContent='Showing '+list.length+' of '+all.length;}else sm.style.display='none';}
-  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Bill No</th><th>By</th>'+(isAdmin?'<th>Action</th>':'')+'</tr></thead><tbody>'+
+  el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Bill No</th><th style="background:#fff3e0;color:#e65100;white-space:nowrap">💳 Pay Days</th><th style="background:#fff3e0;color:#e65100;white-space:nowrap">📅 Due Date</th><th style="background:#fff3e0;color:#e65100;white-space:nowrap">⏱ Status</th><th>By</th>'+(isAdmin?'<th>Action</th>':'')+'</tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id);
-      return '<tr><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'--')+'</td><td>'+(t.note||'--')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm primary" onclick="openEditTxn(\''+t.id+'\',\'OUT\')" style="margin-right:4px">✏</button><button class="btn sm dng" onclick="deleteTxn(\''+t.id+'\')">🗑</button></td>':'')+'</tr>';
+      const cd=parseInt(t.credit_days)||0;
+      const matDate=cd>0?calcMaturityDate(t.date,cd):'';
+      const dRem=matDate?daysRemaining(matDate):null;
+      let statusCell='<td style="color:#999;font-size:12px">--</td>';
+      let rowBg='';
+      if(cd>0&&!t.is_paid){
+        if(dRem===null)statusCell='<td style="color:#999;font-size:12px">--</td>';
+        else if(dRem<0){rowBg='background:#ffebee;';statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#d32f2f;color:#fff">🔴 OVERDUE '+Math.abs(dRem)+'d</span></td>';}
+        else if(dRem===0){rowBg='background:#fff3e0;';statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#f57c00;color:#fff">⚠ DUE TODAY</span></td>';}
+        else if(dRem<=7){rowBg='background:#fff8e1;';statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#f57c00;color:#fff">⏰ DUE IN '+dRem+'d</span></td>';}
+        else statusCell='<td style="color:#2e7d32;font-size:12px;font-weight:600">'+dRem+'d left</td>';
+      } else if(cd>0&&t.is_paid){statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32">✓ PAID</span></td>';}
+      return '<tr style="'+rowBg+'"><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'--')+'</td><td>'+(t.note||'--')+'</td><td style="text-align:center;font-weight:700;color:'+(cd>0?'#e65100':'#999')+'">'+(cd>0?cd+' days':'Cash')+'</td><td style="text-align:center;font-size:12px;color:#555">'+(matDate||'--')+'</td>'+statusCell+'<td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm primary" onclick="openEditTxn(\''+t.id+'\',\'OUT\')" style="margin-right:4px">✏</button><button class="btn sm dng" onclick="deleteTxn(\''+t.id+'\')">🗑</button></td>':'')+'</tr>';
     }).join('')+'</tbody></table>';
 }
 function clearSOF(){['so-f-search','so-f-from','so-f-to'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});soShowAll=false;renderSO();}
@@ -2601,6 +2630,25 @@ function renderBills(){
   if(ovEl)ovEl.innerHTML=buildTable(overdue,'No overdue bills. All clear!');
   if(dsEl)dsEl.innerHTML=buildTable(dueSoon,'No bills due within 7 days.');
   if(allEl)allEl.innerHTML=buildTable(pending,'No pending bills found.');
+}
+
+// ── STOCK OUT CREDIT DAYS HELPERS ────────────────────────────────
+function setSOCredit(days){
+  const el=document.getElementById('so-credit-days');
+  if(el){el.value=days;updateSODuePreview();}
+}
+function updateSODuePreview(){
+  const cd=parseInt(document.getElementById('so-credit-days')?.value)||0;
+  const dateVal=document.getElementById('so-date')?.value||today();
+  const prev=document.getElementById('so-due-preview');
+  if(!prev)return;
+  if(!cd||cd<=0){prev.textContent='';return;}
+  const mat=calcMaturityDate(dateVal,cd);
+  const dRem=mat?daysRemaining(mat):null;
+  let color='#2e7d32',icon='📅';
+  if(dRem!==null&&dRem<0){color='#c62828';icon='🔴';}
+  else if(dRem!==null&&dRem<=7){color='#f57c00';icon='⏰';}
+  prev.innerHTML=icon+' Due: <strong style="color:'+color+'">'+mat+'</strong>'+(dRem!==null?' <span style="font-size:12px;color:'+color+'">('+( dRem<0?Math.abs(dRem)+'d overdue':dRem===0?'Today':dRem+'d left')+')</span>':'');
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
