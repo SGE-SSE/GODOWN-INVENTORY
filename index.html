@@ -1320,19 +1320,28 @@ function renderSO(){
   if(sm){if(!soShowAll&&!hasF&&all.length>SO_LIMIT){sm.style.display='block';if(sc)sc.textContent='Showing '+list.length+' of '+all.length;}else sm.style.display='none';}
   el.innerHTML='<table><thead><tr><th>Bill Date</th><th>Entry Time</th><th>Item</th><th>Brand</th><th>Qty</th><th>Customer</th><th>Bill No</th><th style="background:#fff3e0;color:#e65100;white-space:nowrap">💳 Pay Days</th><th style="background:#fff3e0;color:#e65100;white-space:nowrap">📅 Due Date</th><th style="background:#fff3e0;color:#e65100;white-space:nowrap">⏱ Status</th><th>By</th>'+(isAdmin?'<th>Action</th>':'')+'</tr></thead><tbody>'+
     list.map(t=>{const it=items.find(i=>i.id===t.item_id);
+      const isTransfer=(t.customer||'').toUpperCase()==='INTERNAL TRANSFER'||(t.note||'').toUpperCase().startsWith('TRANSFER');
       const cd=parseInt(t.credit_days)||0;
-      const matDate=cd>0?calcMaturityDate(t.date,cd):'';
+      const matDate=(!isTransfer&&cd>0)?calcMaturityDate(t.date,cd):'';
       const dRem=matDate?daysRemaining(matDate):null;
-      let statusCell='<td style="color:#999;font-size:12px">--</td>';
+      let statusCell='<td style="color:#999;font-size:12px;text-align:center">--</td>';
       let rowBg='';
-      if(cd>0&&!t.is_paid){
-        if(dRem===null)statusCell='<td style="color:#999;font-size:12px">--</td>';
-        else if(dRem<0){rowBg='background:#ffebee;';statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#d32f2f;color:#fff">🔴 OVERDUE '+Math.abs(dRem)+'d</span></td>';}
-        else if(dRem===0){rowBg='background:#fff3e0;';statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#f57c00;color:#fff">⚠ DUE TODAY</span></td>';}
-        else if(dRem<=7){rowBg='background:#fff8e1;';statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#f57c00;color:#fff">⏰ DUE IN '+dRem+'d</span></td>';}
-        else statusCell='<td style="color:#2e7d32;font-size:12px;font-weight:600">'+dRem+'d left</td>';
-      } else if(cd>0&&t.is_paid){statusCell='<td><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32">✓ PAID</span></td>';}
-      return '<tr style="'+rowBg+'"><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'--')+'</td><td>'+(t.note||'--')+'</td><td style="text-align:center;font-weight:700;color:'+(cd>0?'#e65100':'#999')+'">'+(cd>0?cd+' days':'Cash')+'</td><td style="text-align:center;font-size:12px;color:#555">'+(matDate||'--')+'</td>'+statusCell+'<td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm primary" onclick="openEditTxn(\''+t.id+'\',\'OUT\')" style="margin-right:4px">✏</button><button class="btn sm dng" onclick="deleteTxn(\''+t.id+'\')">🗑</button></td>':'')+'</tr>';
+      if(isTransfer){
+        statusCell='<td style="text-align:center"><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#e8f0fb;color:#185FA5">🔄 Transfer</span></td>';
+      } else if(cd>0&&!t.is_paid){
+        if(dRem===null)statusCell='<td style="color:#999;font-size:12px;text-align:center">--</td>';
+        else if(dRem<0){rowBg='background:#ffebee;';statusCell='<td style="text-align:center"><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#d32f2f;color:#fff">🔴 OVERDUE '+Math.abs(dRem)+'d</span></td>';}
+        else if(dRem===0){rowBg='background:#fff3e0;';statusCell='<td style="text-align:center"><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#f57c00;color:#fff">⚠ DUE TODAY</span></td>';}
+        else if(dRem<=7){rowBg='background:#fff8e1;';statusCell='<td style="text-align:center"><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#f57c00;color:#fff">⏰ DUE IN '+dRem+'d</span></td>';}
+        else statusCell='<td style="color:#2e7d32;font-size:12px;font-weight:600;text-align:center">'+dRem+'d left</td>';
+      } else if(cd>0&&t.is_paid){statusCell='<td style="text-align:center"><span style="display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#e8f5e9;color:#2e7d32">✓ PAID</span></td>';}
+      const payDaysCell=isTransfer
+        ?'<td style="text-align:center;color:#999;font-size:12px">N/A</td>'
+        :'<td style="text-align:center;font-weight:700;color:'+(cd>0?'#e65100':'#999')+'">'+(cd>0?cd+' days':'Cash')+'</td>';
+      const dueDateCell=isTransfer
+        ?'<td style="text-align:center;color:#999;font-size:12px">N/A</td>'
+        :'<td style="text-align:center;font-size:12px;color:#555">'+(matDate||'--')+'</td>';
+      return '<tr style="'+rowBg+'"><td>'+t.date+'</td><td style="font-size:12px;color:#555">'+fmtDT(t.created_at)+'</td><td>'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="color:#e65100;font-weight:700">-'+t.qty+' '+(it?it.unit:'')+'</td><td>'+(t.customer||'--')+'</td><td>'+(t.note||'--')+'</td>'+payDaysCell+dueDateCell+statusCell+'<td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td>'+(isAdmin?'<td style="white-space:nowrap"><button class="btn sm primary" onclick="openEditTxn(\''+t.id+'\',\'OUT\')" style="margin-right:4px">✏</button><button class="btn sm dng" onclick="deleteTxn(\''+t.id+'\')">🗑</button></td>':'')+'</tr>';
     }).join('')+'</tbody></table>';
 }
 function clearSOF(){['so-f-search','so-f-from','so-f-to'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});soShowAll=false;renderSO();}
