@@ -36,6 +36,7 @@ tr:last-child td{border-bottom:none}
 .badge.ok{background:#e8f5e9;color:#2e7d32}
 .badge.in{background:#e8f5e9;color:#1b5e20}
 .badge.out{background:#fff3e0;color:#e65100}
+.ac-item:hover,.ac-item.ac-sel{background:#e8f0fb;}
 input,select{width:100%;padding:9px 11px;border:1px solid #ddd;border-radius:7px;font-size:13px;font-family:inherit;background:#fff;color:#1a1a1a}
 input:focus,select:focus{outline:none;border-color:#185FA5}
 .fg label{font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:500}
@@ -164,6 +165,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('closingstock',this)">📦 Closing Stock</button>
   <button onclick="go('pipeclosing',this)">🪠 Pipe Stock</button>
   <button onclick="go('lowstock',this)">⚠ Low Stock</button>
+  <button onclick="go('partymaster',this)">🏢 Party Master</button>
   <button onclick="go('partyledger',this)">👤 Party Ledger</button>
   <button onclick="go('pending',this)" id="pendingNavBtn" style="display:none">💳 Pending</button>
   <button onclick="go('stockvalue',this)">💰 Stock Value</button>
@@ -233,7 +235,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="card">
       <div class="card-title" style="color:#185FA5">Step 1 -- Party &amp; Bill Details</div>
       <div class="frow c3">
-        <div class="fg"><label>Supplier Name *</label><input id="si-sup" placeholder="Supplier / Vendor name"/></div>
+        <div class="fg" style="position:relative"><label>Supplier Name *</label><input id="si-sup" placeholder="Supplier / Vendor name" autocomplete="off"/></div>
         <div class="fg"><label>Invoice No</label><input id="si-note" placeholder="Invoice number"/></div>
         <div class="fg"><label>Date</label><input type="date" id="si-date"/></div>
       </div>
@@ -310,7 +312,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="card">
       <div class="card-title" style="color:#e65100">Step 1 -- Party &amp; Bill Details</div>
       <div class="frow c3">
-        <div class="fg"><label>Customer / Party Name *</label><input id="so-cust" placeholder="Customer name"/></div>
+        <div class="fg" style="position:relative"><label>Customer / Party Name *</label><input id="so-cust" placeholder="Customer name" autocomplete="off"/></div>
         <div class="fg"><label>Bill No</label><input id="so-note" placeholder="Bill number"/></div>
         <div class="fg"><label>Date</label><input type="date" id="so-date" onchange="updateSODuePreview()"/></div>
       </div>
@@ -829,6 +831,71 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
 </div>
 
+<div id="page-partymaster" class="page">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:0">🏢 Party Master</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="pm-search" placeholder="🔍 Search party..." oninput="renderPartyMaster()" style="width:200px;margin-bottom:0"/>
+        <button class="btn primary" onclick="openAddParty()">+ Add Party</button>
+      </div>
+    </div>
+    <div style="background:#e8f0fb;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#185FA5">
+      💡 <strong>Rename any party here</strong> — it will automatically update in all Stock IN, Stock OUT, Bills, Reports, and every transaction.
+    </div>
+    <!-- ONE-TIME MIGRATION BANNER -->
+    <div id="pm-migrate-box" style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div style="font-size:13px;color:#795548">
+        🔄 <strong>First time setup?</strong> Import all existing party names from your transactions into Party Master in one click.
+      </div>
+      <button class="btn" onclick="migrateAllParties()" style="background:#f57c00;color:#fff;border-color:#f57c00;white-space:nowrap">⬆ Import All Parties</button>
+    </div>
+    <div id="pm-migrate-progress" style="display:none;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#2e7d32"></div>
+    <div class="tw" id="pm-table"><div class="loading">Loading...</div></div>
+  </div>
+  <!-- Add/Edit Party Modal -->
+  <div id="pmModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:24px;width:90%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px" id="pmModalTitle">Add Party</div>
+      <div class="fg" style="margin-bottom:12px">
+        <label>Party Name *</label>
+        <input id="pm-name" placeholder="Full party name e.g. ABC Pvt Ltd" oninput="checkPmDuplicate()"/>
+        <div id="pm-dupe-warn" style="font-size:12px;color:#c62828;margin-top:4px;display:none">⚠ Similar party already exists — check before saving!</div>
+      </div>
+      <div class="fg" style="margin-bottom:12px">
+        <label>Type</label>
+        <select id="pm-type">
+          <option value="BOTH">Both (Supplier & Customer)</option>
+          <option value="SUPPLIER">Supplier only</option>
+          <option value="CUSTOMER">Customer only</option>
+        </select>
+      </div>
+      <div class="fg" style="margin-bottom:16px">
+        <label>Phone (Optional)</label>
+        <input id="pm-phone" placeholder="Contact number"/>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn" onclick="closePmModal()">Cancel</button>
+        <button class="btn primary" onclick="saveParty()">Save Party</button>
+      </div>
+    </div>
+  </div>
+  <!-- Rename Modal -->
+  <div id="pmRenameModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:24px;width:90%;max-width:460px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">✏ Rename Party</div>
+      <div style="font-size:12px;color:#555;margin-bottom:16px">This will update the name in <strong>all transactions, bills and reports</strong> automatically.</div>
+      <div class="fg" style="margin-bottom:8px"><label>Current Name</label><input id="pm-old-name" readonly style="background:#f5f5f5;color:#888"/></div>
+      <div class="fg" style="margin-bottom:16px"><label>New Name *</label><input id="pm-new-name" placeholder="Corrected party name"/></div>
+      <div id="pm-rename-progress" style="font-size:12px;color:#185FA5;margin-bottom:10px;display:none">⏳ Updating transactions... please wait</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn" onclick="closeRenameModal()">Cancel</button>
+        <button class="btn primary" onclick="doRenameParty()">✅ Rename & Update All</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPA_URL='https://ibawonlchzxmocoxkirz.supabase.co';
 const SUPA_KEY='sb_publishable_j3BvHCejXy9hOnlB0EpcSw_6nJM5N-l';
@@ -848,6 +915,321 @@ const SI_LIMIT=30,SO_LIMIT=30;
 let editingTxnId=null;
 const today=()=>new Date().toISOString().split('T')[0];
 const DEFAULT_OPERATOR=localStorage.getItem('sge_operator')||'';
+
+// ── PARTY MASTER ─────────────────────────────────────────────────
+let parties=[];  // [{id,name,type,phone}]
+let editingPartyId=null;
+
+async function loadParties(){
+  try{
+    // Try Supabase parties table first
+    const res=await api('GET','parties?select=*&order=name');
+    parties=res||[];
+  }catch(e){
+    // Fallback: build from existing transactions
+    parties=buildPartiesFromTxns();
+  }
+  attachAutocompletes();
+}
+
+async function migrateAllParties(){
+  if(!isAdmin){toast('Admin access required','err');return;}
+  const prog=document.getElementById('pm-migrate-progress');
+  const box=document.getElementById('pm-migrate-box');
+
+  // Collect all unique names from ALL transactions (not just current location filter)
+  let allTxns=txns;
+  try{
+    const full=await api('GET','transactions?select=supplier,customer&order=created_at.desc&limit=5000');
+    allTxns=full;
+  }catch(e){}
+
+  const supplierNames=new Set();
+  const customerNames=new Set();
+  allTxns.forEach(t=>{
+    if(t.supplier&&t.supplier.trim()&&t.supplier!=='INTERNAL TRANSFER') supplierNames.add(t.supplier.trim());
+    if(t.customer&&t.customer.trim()&&t.customer!=='INTERNAL TRANSFER') customerNames.add(t.customer.trim());
+  });
+
+  const allNames=new Map(); // name → type
+  supplierNames.forEach(n=>allNames.set(n, customerNames.has(n)?'BOTH':'SUPPLIER'));
+  customerNames.forEach(n=>{ if(!allNames.has(n)) allNames.set(n,'CUSTOMER'); });
+
+  if(!allNames.size){toast('No party names found in transactions','err');return;}
+  if(!confirm('Found '+allNames.size+' unique parties in your transactions.\nImport all into Party Master?'))return;
+
+  prog.style.display='block';
+  box.style.display='none';
+  let added=0,skipped=0,errors=0;
+
+  for(const [name,type] of allNames){
+    const already=parties.find(p=>p.name.toLowerCase()===name.toLowerCase());
+    if(already){
+      // upgrade type if needed
+      if(already.type!=='BOTH'&&already.type!==type&&type==='BOTH'){
+        try{
+          if(!already.id.startsWith('loc_')) await api('PATCH','parties?id=eq.'+already.id,{type:'BOTH'});
+          already.type='BOTH';
+        }catch(e){}
+      }
+      skipped++;
+    } else {
+      try{
+        const res=await api('POST','parties',{name,type,phone:''});
+        parties.push(res[0]||{id:'loc_'+Date.now(),name,type,phone:''});
+        added++;
+      }catch(e){errors++;}
+    }
+    prog.textContent='⏳ Processing... '+( added+skipped+errors)+' / '+allNames.size+' parties';
+  }
+
+  prog.innerHTML='✅ <strong>Done!</strong> '+added+' new parties added, '+skipped+' already existed'+(errors?' | ⚠ '+errors+' errors':'')+'.<br><span style="font-size:12px;color:#555">You can hide this banner now — migration is complete.</span>';
+  attachAutocompletes();
+  renderPartyMaster();
+  toast('✅ Migration complete! '+added+' parties imported','ok');
+}
+
+async function autoSaveParty(name, type){
+  if(!name||name==='INTERNAL TRANSFER')return;
+  const existing=parties.find(p=>p.name.toLowerCase()===name.toLowerCase());
+  if(existing){
+    // If exists as one type and now used as the other, upgrade to BOTH
+    if(existing.type!=='BOTH'&&existing.type!==type){
+      existing.type='BOTH';
+      if(!existing.id.startsWith('loc_')){
+        try{await api('PATCH','parties?id=eq.'+existing.id,{type:'BOTH'});}catch(e){}
+      }
+    }
+    return;
+  }
+  // New party — add to master
+  const newParty={name,type,phone:''};
+  try{
+    const res=await api('POST','parties',newParty);
+    parties.push(res[0]||{id:'loc_'+Date.now(),...newParty});
+  }catch(e){
+    // parties table may not exist yet — store locally so autocomplete still works
+    parties.push({id:'loc_'+Date.now(),...newParty});
+  }
+  attachAutocompletes();
+}
+
+function buildPartiesFromTxns(){
+  const names=new Set();
+  txns.forEach(t=>{
+    if(t.supplier&&t.supplier!=='INTERNAL TRANSFER')names.add(t.supplier.trim());
+    if(t.customer&&t.customer!=='INTERNAL TRANSFER')names.add(t.customer.trim());
+  });
+  return [...names].sort().map((n,i)=>({id:'loc_'+i,name:n,type:'BOTH',phone:''}));
+}
+
+function getPartyNames(filter=''){
+  const f=filter.toLowerCase();
+  return parties.map(p=>p.name).filter(n=>!f||n.toLowerCase().includes(f)).sort();
+}
+
+// ── AUTOCOMPLETE ENGINE ───────────────────────────────────────────
+function attachAutocompletes(){
+  setupAC('si-sup');
+  setupAC('so-cust');
+  setupAC('dmg-party');
+  setupAC('etxn-party');
+  setupAC('pm-name');
+}
+
+function setupAC(inputId){
+  const inp=document.getElementById(inputId);
+  if(!inp||inp._acDone)return;
+  inp._acDone=true;
+  const wrap=inp.parentElement;
+  wrap.style.position='relative';
+  const drop=document.createElement('div');
+  drop.id=inputId+'-ac';
+  drop.style.cssText='display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #185FA5;border-top:none;border-radius:0 0 8px 8px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  wrap.appendChild(drop);
+
+  inp.addEventListener('input',()=>showAC(inputId));
+  inp.addEventListener('focus',()=>{if(inp.value.length>=1)showAC(inputId);});
+  inp.addEventListener('keydown',e=>{
+    const items=drop.querySelectorAll('.ac-item');
+    const cur=[...items].findIndex(i=>i.classList.contains('ac-sel'));
+    if(e.key==='ArrowDown'){e.preventDefault();const nx=cur<items.length-1?cur+1:0;items.forEach(i=>i.classList.remove('ac-sel'));if(items[nx])items[nx].classList.add('ac-sel');}
+    else if(e.key==='ArrowUp'){e.preventDefault();const nx=cur>0?cur-1:items.length-1;items.forEach(i=>i.classList.remove('ac-sel'));if(items[nx])items[nx].classList.add('ac-sel');}
+    else if(e.key==='Enter'){const sel=drop.querySelector('.ac-sel');if(sel){e.preventDefault();inp.value=sel.dataset.val;drop.style.display='none';if(inputId==='so-cust')updateSODuePreview();}}
+    else if(e.key==='Escape'){drop.style.display='none';}
+  });
+  document.addEventListener('click',e=>{if(!wrap.contains(e.target))drop.style.display='none';},{capture:true});
+}
+
+function showAC(inputId){
+  const inp=document.getElementById(inputId);
+  const drop=document.getElementById(inputId+'-ac');
+  if(!inp||!drop)return;
+  const val=inp.value.trim();
+  if(val.length<1){drop.style.display='none';return;}
+  const matches=getPartyNames(val);
+  if(!matches.length){drop.style.display='none';return;}
+  drop.innerHTML=matches.slice(0,12).map(n=>{
+    const hl=n.replace(new RegExp('('+val.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<strong style="color:#185FA5">$1</strong>');
+    return '<div class="ac-item" data-val="'+n.replace(/"/g,'&quot;')+'" style="padding:9px 13px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0" onmousedown="pickAC(\''+inputId+'\',this)">'+hl+'</div>';
+  }).join('');
+  drop.style.display='block';
+  drop.querySelectorAll('.ac-item').forEach(it=>{
+    it.addEventListener('mouseenter',()=>{drop.querySelectorAll('.ac-item').forEach(i=>i.classList.remove('ac-sel'));it.classList.add('ac-sel');});
+  });
+}
+
+function pickAC(inputId,el){
+  const inp=document.getElementById(inputId);
+  const drop=document.getElementById(inputId+'-ac');
+  if(inp)inp.value=el.dataset.val;
+  if(drop)drop.style.display='none';
+  if(inputId==='so-cust')updateSODuePreview();
+}
+
+// ── PARTY MASTER UI ───────────────────────────────────────────────
+function renderPartyMaster(){
+  if(!isAdmin){document.getElementById('pm-table').innerHTML='<div class="empty">🔐 Admin access required to manage Party Master</div>';return;}
+  const srch=(document.getElementById('pm-search')?.value||'').toLowerCase();
+  const list=parties.filter(p=>!srch||p.name.toLowerCase().includes(srch));
+  if(!list.length){document.getElementById('pm-table').innerHTML='<div class="empty">No parties found. Add your first party!</div>';return;}
+  document.getElementById('pm-table').innerHTML='<table><thead><tr><th>#</th><th>Party Name</th><th>Type</th><th>Phone</th><th>Txn Count</th><th>Actions</th></tr></thead><tbody>'+
+    list.map((p,i)=>{
+      const cnt=txns.filter(t=>(t.supplier||'')==p.name||(t.customer||'')==p.name).length;
+      const typeBadge=p.type==='SUPPLIER'?'<span style="background:#e8f0fb;color:#185FA5;padding:2px 8px;border-radius:10px;font-size:11px">Supplier</span>':p.type==='CUSTOMER'?'<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px">Customer</span>':'<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px">Both</span>';
+      return '<tr><td style="color:#999;font-size:12px">'+(i+1)+'</td><td style="font-weight:600">'+p.name+'</td><td>'+typeBadge+'</td><td style="color:#555;font-size:12px">'+(p.phone||'--')+'</td><td style="text-align:center"><span style="background:#f0f4fa;padding:2px 8px;border-radius:10px;font-size:12px">'+cnt+'</span></td><td style="white-space:nowrap"><button class="btn sm primary" onclick="openRenameParty(\''+p.id+'\')" style="margin-right:4px">✏ Rename</button><button class="btn sm" onclick="openEditParty(\''+p.id+'\')">⚙ Edit</button></td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+function openAddParty(){
+  if(!isAdmin){toast('Admin access required','err');return;}
+  editingPartyId=null;
+  document.getElementById('pmModalTitle').textContent='Add New Party';
+  document.getElementById('pm-name').value='';
+  document.getElementById('pm-type').value='BOTH';
+  document.getElementById('pm-phone').value='';
+  document.getElementById('pm-dupe-warn').style.display='none';
+  document.getElementById('pmModal').style.display='flex';
+  setTimeout(()=>document.getElementById('pm-name').focus(),100);
+}
+
+function openEditParty(id){
+  if(!isAdmin){toast('Admin access required','err');return;}
+  const p=parties.find(x=>x.id===id);if(!p)return;
+  editingPartyId=id;
+  document.getElementById('pmModalTitle').textContent='Edit Party';
+  document.getElementById('pm-name').value=p.name;
+  document.getElementById('pm-type').value=p.type||'BOTH';
+  document.getElementById('pm-phone').value=p.phone||'';
+  document.getElementById('pm-dupe-warn').style.display='none';
+  document.getElementById('pmModal').style.display='flex';
+}
+
+function closePmModal(){document.getElementById('pmModal').style.display='none';}
+
+function checkPmDuplicate(){
+  const val=(document.getElementById('pm-name').value||'').trim().toLowerCase();
+  if(!val){document.getElementById('pm-dupe-warn').style.display='none';return;}
+  const similar=parties.filter(p=>p.id!==editingPartyId&&(p.name.toLowerCase().includes(val)||val.includes(p.name.toLowerCase())));
+  document.getElementById('pm-dupe-warn').style.display=similar.length?'block':'none';
+}
+
+async function saveParty(){
+  const name=(document.getElementById('pm-name').value||'').trim();
+  const type=document.getElementById('pm-type').value;
+  const phone=(document.getElementById('pm-phone').value||'').trim();
+  if(!name){toast('Party name required','err');return;}
+  try{
+    if(editingPartyId){
+      // Check if it's a local (from txns) or real DB party
+      if(editingPartyId.startsWith('loc_')){
+        // Just update local array
+        const p=parties.find(x=>x.id===editingPartyId);
+        if(p){p.name=name;p.type=type;p.phone=phone;}
+      } else {
+        await api('PATCH','parties?id=eq.'+editingPartyId,{name,type,phone});
+        const p=parties.find(x=>x.id===editingPartyId);
+        if(p){p.name=name;p.type=type;p.phone=phone;}
+      }
+      toast('Party updated ✓','ok');
+    } else {
+      try{
+        const res=await api('POST','parties',{name,type,phone});
+        parties.push(res[0]||{id:'loc_'+Date.now(),name,type,phone});
+      }catch(e){
+        // If parties table doesn't exist in Supabase yet, store locally
+        parties.push({id:'loc_'+Date.now(),name,type,phone});
+      }
+      toast('Party added ✓','ok');
+    }
+    closePmModal();
+    attachAutocompletes();
+    renderPartyMaster();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+function openRenameParty(id){
+  if(!isAdmin){toast('Admin access required','err');return;}
+  const p=parties.find(x=>x.id===id);if(!p)return;
+  editingPartyId=id;
+  document.getElementById('pm-old-name').value=p.name;
+  document.getElementById('pm-new-name').value=p.name;
+  document.getElementById('pm-rename-progress').style.display='none';
+  document.getElementById('pmRenameModal').style.display='flex';
+  setTimeout(()=>{const el=document.getElementById('pm-new-name');el.focus();el.select();},100);
+}
+
+function closeRenameModal(){document.getElementById('pmRenameModal').style.display='none';}
+
+async function doRenameParty(){
+  const oldName=document.getElementById('pm-old-name').value.trim();
+  const newName=(document.getElementById('pm-new-name').value||'').trim();
+  if(!newName||newName===oldName){toast('Enter a different name','err');return;}
+  if(!confirm('Rename "'+oldName+'" to "'+newName+'" in ALL transactions?\nThis cannot be undone.'))return;
+  const prog=document.getElementById('pm-rename-progress');
+  prog.style.display='block';prog.textContent='⏳ Finding transactions...';
+
+  // Find all txns with old name as supplier or customer
+  const affected=txns.filter(t=>(t.supplier||'')==oldName||(t.customer||'')==oldName);
+  prog.textContent='⏳ Updating '+affected.length+' transactions...';
+
+  let done=0,errors=0;
+  for(const t of affected){
+    try{
+      const patch={};
+      if((t.supplier||'')==oldName)patch.supplier=newName;
+      if((t.customer||'')==oldName)patch.customer=newName;
+      await api('PATCH','transactions?id=eq.'+t.id,patch);
+      // Update local txns array too
+      if(patch.supplier)t.supplier=newName;
+      if(patch.customer)t.customer=newName;
+      done++;
+      if(affected.length>5)prog.textContent='⏳ Updated '+done+' / '+affected.length+' transactions...';
+    }catch(e){errors++;}
+  }
+
+  // Update party master name
+  const p=parties.find(x=>x.id===editingPartyId);
+  if(p){
+    p.name=newName;
+    if(!editingPartyId.startsWith('loc_')){
+      try{await api('PATCH','parties?id=eq.'+editingPartyId,{name:newName});}catch(e){}
+    }
+  }
+
+  prog.style.display='none';
+  closeRenameModal();
+  if(errors)toast('Done with '+errors+' errors — check console','err');
+  else toast('✅ Renamed! '+done+' transactions updated','ok');
+  attachAutocompletes();
+  renderPartyMaster();
+  // Refresh party ledger dropdown
+  const plEl=document.getElementById('pl-party');
+  if(plEl){
+    [...plEl.options].forEach(o=>{if(o.value===oldName)o.value=o.textContent=newName;});
+  }
+}
+
 
 const H={'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
 async function api(method,path,body){
@@ -891,6 +1273,7 @@ async function load(silent){
       if(t.credit_days==null)t.credit_days=parseInt(localStorage.getItem('sge_credit_'+t.id)||'0');
       if(t.is_paid==null)t.is_paid=localStorage.getItem('sge_paid_'+t.id)==='true';
     });
+    await loadParties();
     sync('Synced '+new Date().toLocaleTimeString());
     renderAll();
   }catch(e){sync('Error');toast('Connection error: '+e.message,'err');}
@@ -1267,6 +1650,9 @@ async function submitQ(prefix){
       }
     }
     const cnt=q.length;
+    // ── AUTO-SAVE TO PARTY MASTER ──────────────────────────────
+    await autoSaveParty(party, prefix==='si'?'SUPPLIER':'CUSTOMER');
+    // ──────────────────────────────────────────────────────────
     if(prefix==='si'){siQueue=[];document.getElementById('si-sup').value='';document.getElementById('si-note').value='';document.getElementById('si-operator').value='';document.getElementById('si-remarks').value='';}
     else{soQueue=[];document.getElementById('so-cust').value='';document.getElementById('so-note').value='';document.getElementById('so-operator').value='';document.getElementById('so-remarks').value='';const scd=document.getElementById('so-credit-days');if(scd)scd.value='';const sdp=document.getElementById('so-due-preview');if(sdp)sdp.textContent='';}
     renderQ(prefix);toast(cnt+' items submitted! 🎉','ok');load(true);
@@ -1826,7 +2212,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
