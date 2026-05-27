@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -167,6 +167,8 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('lowstock',this)">⚠ Low Stock</button>
   <button onclick="go('partymaster',this)">🏢 Party Master</button>
   <button onclick="go('partyledger',this)">👤 Party Ledger</button>
+  <button onclick="go('supplierledger',this)">📦 Supplier Ledger</button>
+  <button onclick="go('customerledger',this)">👥 Customer Ledger</button>
   <button onclick="go('pending',this)" id="pendingNavBtn" style="display:none">💳 Pending</button>
   <button onclick="go('stockvalue',this)">💰 Stock Value</button>
   <button onclick="go('dmgrtn',this)">🔧 DMG/RTN</button>
@@ -896,6 +898,235 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     SUPPLIER LEDGER
+════════════════════════════════════════════════════════════════ -->
+<div id="page-supplierledger" class="page">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:0">📦 Supplier Ledger</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="sl-party" onchange="renderSupplierLedger()" style="min-width:200px;margin-bottom:0;font-weight:600">
+          <option value="">-- Select Supplier --</option>
+        </select>
+        <button class="btn primary" onclick="openLedgerEntry('SUPPLIER')">+ Add Entry</button>
+        <button class="btn" onclick="printLedger('SUPPLIER')" style="background:#185FA5;color:#fff;border-color:#185FA5">🖨 Print / PDF</button>
+        <button class="btn" onclick="exportLedgerExcel('SUPPLIER')" style="background:#2e7d32;color:#fff;border-color:#2e7d32">📊 Excel</button>
+      </div>
+    </div>
+    <div id="sl-summary" style="display:none;margin-bottom:12px"></div>
+    <div class="tw" id="sl-table"><div class="empty">Select a supplier to view ledger</div></div>
+    <div id="sl-footer" style="display:none;margin-top:16px;padding:16px;background:#f9f9f9;border-radius:8px;font-size:12px;color:#555;border:1px solid #e0e0e0"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CUSTOMER LEDGER
+════════════════════════════════════════════════════════════════ -->
+<div id="page-customerledger" class="page">
+
+  <!-- TAB SWITCHER -->
+  <div style="display:flex;gap:0;margin-bottom:16px;border-radius:10px;overflow:hidden;border:1px solid #e65100;width:fit-content">
+    <button id="cl-btn-stmt" onclick="switchCLTab('statement')" style="padding:9px 22px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:#e65100;color:#fff">📋 Statement</button>
+    <button id="cl-btn-entry" onclick="switchCLTab('entry')" style="padding:9px 22px;border:none;cursor:pointer;font-size:13px;font-weight:600;background:#fff;color:#e65100">📝 Manual Entry</button>
+  </div>
+
+  <!-- STATEMENT TAB -->
+  <div id="cl-tab-statement" class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:0">👥 Customer Ledger</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="cl-party" onchange="renderCustomerLedger()" style="min-width:200px;margin-bottom:0;font-weight:600">
+          <option value="">-- Select Customer --</option>
+        </select>
+        <button class="btn orange" onclick="openLedgerEntry('CUSTOMER')">+ Quick Entry</button>
+        <button class="btn" onclick="printLedger('CUSTOMER')" style="background:#185FA5;color:#fff;border-color:#185FA5">🖨 Print / PDF</button>
+        <button class="btn" onclick="exportLedgerExcel('CUSTOMER')" style="background:#2e7d32;color:#fff;border-color:#2e7d32">📊 Excel</button>
+      </div>
+    </div>
+    <div id="cl-summary" style="display:none;margin-bottom:12px"></div>
+    <div class="tw" id="cl-table"><div class="empty">Select a customer to view ledger</div></div>
+    <div id="cl-footer" style="display:none;margin-top:16px;padding:16px;background:#f9f9f9;border-radius:8px;font-size:12px;color:#555;border:1px solid #e0e0e0"></div>
+  </div>
+
+  <!-- MANUAL ENTRY TAB -->
+  <div id="cl-tab-entry" style="display:none">
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title" style="color:#e65100;margin-bottom:4px">📝 Manual Entry — Existing Client Bills</div>
+      <div style="font-size:13px;color:#666;margin-bottom:16px">Enter bills, payments, credit notes that existed before this system. All entries are saved to Supabase and appear in the Statement tab.</div>
+
+      <!-- PARTY + DATE ROW -->
+      <div class="frow c3" style="margin-bottom:12px">
+        <div class="fg" style="position:relative">
+          <label>Customer Name *</label>
+          <input id="me-party" placeholder="Type customer name" autocomplete="off" oninput="showAC('me-party');meTotalBalance()"/>
+        </div>
+        <div class="fg">
+          <label>Date *</label>
+          <input type="date" id="me-date" onchange="meUpdateDuePreview()"/>
+        </div>
+        <div class="fg">
+          <label>Entry Type</label>
+          <select id="me-entry-type" onchange="meToggleType()">
+            <option value="BILL">🧾 Bill (Debit)</option>
+            <option value="PAYMENT">💰 Payment Received (Credit)</option>
+            <option value="CREDITNOTE">📋 Credit Note (Credit)</option>
+            <option value="OTHER">📌 Other</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- BILL DETAILS ROW -->
+      <div class="frow c3" style="margin-bottom:12px">
+        <div class="fg">
+          <label>Place / Location</label>
+          <input id="me-place" placeholder="e.g. Hyderabad, Site A"/>
+        </div>
+        <div class="fg">
+          <label>Bill No / Reference *</label>
+          <input id="me-billno" placeholder="Invoice / NEFT / CN no."/>
+        </div>
+        <div class="fg">
+          <label>💳 Credit Days</label>
+          <input type="number" id="me-credit-days" placeholder="0 = cash" min="0" max="365" oninput="meUpdateDuePreview()" style="border:2px solid #e65100;font-weight:600"/>
+        </div>
+      </div>
+
+      <!-- CREDIT DAYS QUICK BUTTONS + DUE PREVIEW -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <span style="font-size:12px;color:#888">Quick:</span>
+        <button type="button" class="qty-btn" onclick="setMECredit(30)">30d</button>
+        <button type="button" class="qty-btn" onclick="setMECredit(45)">45d</button>
+        <button type="button" class="qty-btn" onclick="setMECredit(60)">60d</button>
+        <button type="button" class="qty-btn" onclick="setMECredit(90)">90d</button>
+        <button type="button" class="qty-btn" onclick="setMECredit(0)">Cash</button>
+        <div id="me-due-preview" style="font-size:13px;font-weight:600;color:#555;margin-left:8px"></div>
+      </div>
+
+      <!-- REMARKS -->
+      <div class="fg" style="margin-bottom:12px">
+        <label>Remarks</label>
+        <input id="me-remarks" placeholder="Description — e.g. Payment against bill no. XXXX, Credit note for returns..."/>
+      </div>
+
+      <!-- AMOUNT ROW -->
+      <div class="frow c3" style="margin-bottom:14px">
+        <div class="fg">
+          <label id="me-debit-label">Debit Amount (₹) *</label>
+          <input type="number" id="me-debit" placeholder="0" min="0" oninput="meCalcBalance()" style="font-size:16px;font-weight:700;border:2px solid #e65100"/>
+        </div>
+        <div class="fg">
+          <label id="me-credit-label">Credit Amount (₹)</label>
+          <input type="number" id="me-credit" placeholder="0" min="0" oninput="meCalcBalance()" style="font-size:16px;font-weight:700;border:2px solid #2e7d32"/>
+        </div>
+        <div class="fg" style="display:flex;align-items:flex-end">
+          <div id="me-balance-preview" style="padding:10px 14px;border-radius:8px;background:#f5f5f5;font-size:13px;font-weight:600;width:100%;min-height:42px;display:flex;align-items:center">Balance will show here</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn orange" style="padding:10px 32px;font-size:14px" onclick="saveManualEntry()">💾 Save Entry</button>
+        <button class="btn" onclick="clearManualEntry()">🗑 Clear</button>
+        <div id="me-save-status" style="font-size:13px;color:#2e7d32;font-weight:600"></div>
+      </div>
+    </div>
+
+    <!-- RECENT ENTRIES FOR THIS PARTY -->
+    <div class="card" id="me-recent-card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0;font-size:14px" id="me-recent-title">Recent Entries</div>
+        <button class="btn" onclick="switchCLTabWithParty()" style="font-size:12px">View Full Statement →</button>
+      </div>
+      <div class="tw" id="me-recent-table"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LEDGER ENTRY MODAL (shared for Supplier + Customer)
+════════════════════════════════════════════════════════════════ -->
+<div id="ledgerModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;overflow-y:auto">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:95%;max-width:560px;margin:20px auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div style="font-size:16px;font-weight:700" id="ledgerModalTitle">Add Ledger Entry</div>
+      <button onclick="closeLedgerModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666">✕</button>
+    </div>
+    <div class="frow c2" style="margin-bottom:12px">
+      <div class="fg" style="position:relative">
+        <label>Party Name *</label>
+        <input id="le-party" placeholder="Type party name" autocomplete="off" oninput="showAC('le-party')"/>
+      </div>
+      <div class="fg">
+        <label>Date *</label>
+        <input type="date" id="le-date" onchange="leUpdateDuePreview()"/>
+      </div>
+    </div>
+    <div class="frow c2" style="margin-bottom:12px">
+      <div class="fg">
+        <label>Place / Dispatch Location</label>
+        <input id="le-place" placeholder="e.g. Hyderabad, Gujarat"/>
+      </div>
+      <div class="fg">
+        <label>Bill No / Reference</label>
+        <input id="le-billno" placeholder="Invoice / NEFT / CN no."/>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Remarks</label>
+      <input id="le-remarks" placeholder="e.g. Payment against bill, Credit note, Trip charges..."/>
+    </div>
+    <div class="frow c3" style="margin-bottom:12px">
+      <div class="fg">
+        <label>Debit (₹)</label>
+        <input type="number" id="le-debit" placeholder="0" min="0" oninput="previewLEBalance()"/>
+      </div>
+      <div class="fg">
+        <label>Credit (₹)</label>
+        <input type="number" id="le-credit" placeholder="0" min="0" oninput="previewLEBalance()"/>
+      </div>
+      <div class="fg">
+        <label>💳 Credit Days</label>
+        <input type="number" id="le-credit-days" placeholder="0 = cash" min="0" max="365" oninput="leUpdateDuePreview()" style="border:2px solid #185FA5;font-weight:600"/>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span style="font-size:12px;color:#888">Quick:</span>
+      <button type="button" class="qty-btn" onclick="setLECredit(30)">30d</button>
+      <button type="button" class="qty-btn" onclick="setLECredit(45)">45d</button>
+      <button type="button" class="qty-btn" onclick="setLECredit(60)">60d</button>
+      <button type="button" class="qty-btn" onclick="setLECredit(90)">90d</button>
+      <button type="button" class="qty-btn" onclick="setLECredit(0)">Cash</button>
+      <div id="le-due-preview" style="font-size:13px;font-weight:600;color:#555;margin-left:8px"></div>
+    </div>
+    <div id="le-balance-preview" style="background:#e8f5e9;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;color:#2e7d32;margin-bottom:16px;display:none"></div>
+    <input type="hidden" id="le-type"/>
+    <input type="hidden" id="le-editing-id"/>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeLedgerModal()">Cancel</button>
+      <button class="btn primary" onclick="saveLedgerEntry()">💾 Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT TEMPLATE -->
+<div id="ledger-print-area" style="display:none">
+  <div id="ledger-print-content"></div>
+</div>
+
+<style>
+@media print {
+  body > *:not(#ledger-print-area) { display: none !important; }
+  #ledger-print-area { display: block !important; }
+  #ledger-print-content { font-family: Arial, sans-serif; font-size: 11px; }
+  .lp-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .lp-table th { background: #185FA5; color: #fff; padding: 6px 8px; text-align: left; font-size: 10px; }
+  .lp-table td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; font-size: 10px; }
+  .lp-overdue { background: #ffebee; }
+  .lp-credit-row { background: #e8f5e9; }
+}
+</style>
+
 <script>
 const SUPA_URL='https://ibawonlchzxmocoxkirz.supabase.co';
 const SUPA_KEY='sb_publishable_j3BvHCejXy9hOnlB0EpcSw_6nJM5N-l';
@@ -1035,6 +1266,8 @@ function attachAutocompletes(){
   setupAC('dmg-party');
   setupAC('etxn-party');
   setupAC('pm-name');
+  setupAC('le-party');
+  setupAC('me-party');
 }
 
 function setupAC(inputId){
@@ -1274,6 +1507,8 @@ async function load(silent){
       if(t.is_paid==null)t.is_paid=localStorage.getItem('sge_paid_'+t.id)==='true';
     });
     await loadParties();
+    await loadLedgerEntries();
+    populateLedgerDropdowns();
     sync('Synced '+new Date().toLocaleTimeString());
     renderAll();
   }catch(e){sync('Error');toast('Connection error: '+e.message,'err');}
@@ -2212,7 +2447,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}if(name==='supplierledger'){populateLedgerDropdowns();renderSupplierLedger();}if(name==='customerledger'){populateLedgerDropdowns();renderCustomerLedger();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
@@ -3025,6 +3260,597 @@ function renderBills(){
   if(ovEl)ovEl.innerHTML=buildTable(overdue,'No overdue bills. All clear!');
   if(dsEl)dsEl.innerHTML=buildTable(dueSoon,'No bills due within 7 days.');
   if(allEl)allEl.innerHTML=buildTable(pending,'No pending bills found.');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// LEDGER SYSTEM
+// ══════════════════════════════════════════════════════════════════
+let ledgerEntries=[];
+
+async function loadLedgerEntries(){
+  try{
+    const res=await api('GET','ledger_entries?select=*&order=date.asc,created_at.asc');
+    ledgerEntries=res||[];
+  }catch(e){ledgerEntries=[];}
+}
+
+function populateLedgerDropdowns(){
+  // Supplier dropdown
+  const slEl=document.getElementById('sl-party');
+  const clEl=document.getElementById('cl-party');
+  if(!slEl||!clEl)return;
+  const curSL=slEl.value, curCL=clEl.value;
+  slEl.innerHTML='<option value="">-- Select Supplier --</option>';
+  clEl.innerHTML='<option value="">-- Select Customer --</option>';
+  const suppliers=parties.filter(p=>p.type==='SUPPLIER'||p.type==='BOTH').map(p=>p.name).sort();
+  const customers=parties.filter(p=>p.type==='CUSTOMER'||p.type==='BOTH').map(p=>p.name).sort();
+  // Also include any party found in ledger entries not yet in master
+  const leParties=new Set(ledgerEntries.map(e=>e.party_name));
+  leParties.forEach(n=>{
+    if(n&&!suppliers.includes(n))suppliers.push(n);
+    if(n&&!customers.includes(n))customers.push(n);
+  });
+  suppliers.sort().forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;slEl.appendChild(o);});
+  customers.sort().forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;clEl.appendChild(o);});
+  if(curSL)slEl.value=curSL;
+  if(curCL)clEl.value=curCL;
+}
+
+function getLedgerRows(partyName, type){
+  return ledgerEntries
+    .filter(e=>e.party_name===partyName&&e.ledger_type===type)
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.created_at.localeCompare(b.created_at));
+}
+
+function buildLedgerTable(rows, type){
+  if(!rows.length)return '<div class="empty">No entries found for this party.</div>';
+  let balance=0;
+  const accentColor=type==='SUPPLIER'?'#185FA5':'#e65100';
+  const todayStr=today();
+  let html=`<table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead>
+      <tr style="background:${accentColor};color:#fff">
+        <th style="padding:8px 10px;text-align:left;white-space:nowrap">Date</th>
+        <th style="padding:8px 10px;text-align:left">Place</th>
+        <th style="padding:8px 10px;text-align:left">Remarks</th>
+        <th style="padding:8px 10px;text-align:left;white-space:nowrap">Bill No</th>
+        <th style="padding:8px 10px;text-align:right;white-space:nowrap">Debit (₹)</th>
+        <th style="padding:8px 10px;text-align:right;white-space:nowrap">Credit (₹)</th>
+        <th style="padding:8px 10px;text-align:right;white-space:nowrap">Balance (₹)</th>
+        <th style="padding:8px 10px;text-align:center;white-space:nowrap">Due On</th>
+        <th style="padding:8px 10px;text-align:center;white-space:nowrap">Overdue By</th>
+        ${isAdmin?'<th style="padding:8px 10px;text-align:center">Action</th>':''}
+      </tr>
+    </thead><tbody>`;
+
+  rows.forEach(r=>{
+    const debit=parseFloat(r.debit)||0;
+    const credit=parseFloat(r.credit)||0;
+    balance+=debit-credit;
+    const dueDate=r.due_date||'';
+    let overdueCell='--', rowStyle='';
+    if(dueDate){
+      const dRem=daysRemaining(dueDate);
+      if(dRem<0){overdueCell=`<span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#d32f2f;color:#fff;font-weight:700;font-size:11px">🔴 ${Math.abs(dRem)}d</span>`;rowStyle='background:#fff8f8;';}
+      else if(dRem===0){overdueCell=`<span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#f57c00;color:#fff;font-weight:700;font-size:11px">⚠ Today</span>`;rowStyle='background:#fff8e1;';}
+      else if(dRem<=7){overdueCell=`<span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#f9a825;color:#fff;font-size:11px">⏰ ${dRem}d left</span>`;rowStyle='background:#fffde7;';}
+      else overdueCell=`<span style="color:#2e7d32;font-size:12px">${dRem}d left</span>`;
+    }
+    const isCredit=credit>0&&debit===0;
+    if(isCredit&&!rowStyle)rowStyle='background:#f1f8f1;';
+    html+=`<tr style="${rowStyle}border-bottom:1px solid #f0f0f0">
+      <td style="padding:7px 10px;white-space:nowrap">${r.date}</td>
+      <td style="padding:7px 10px;color:#555">${r.place||'--'}</td>
+      <td style="padding:7px 10px;max-width:200px">${r.remarks||'--'}</td>
+      <td style="padding:7px 10px;font-size:12px;color:#185FA5">${r.bill_no||'--'}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:${debit>0?'600':'400'};color:${debit>0?'#c62828':'#999'}">${debit>0?'₹'+fmt(debit):'--'}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:${credit>0?'600':'400'};color:${credit>0?'#2e7d32':'#999'}">${credit>0?'₹'+fmt(credit):'--'}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:700;color:${balance>0?'#c62828':balance<0?'#2e7d32':'#333'}">₹${fmt(Math.abs(balance))}${balance<0?' (Adv)':''}</td>
+      <td style="padding:7px 10px;text-align:center;font-size:12px;color:#555">${dueDate||'--'}</td>
+      <td style="padding:7px 10px;text-align:center">${overdueCell}</td>
+      ${isAdmin?`<td style="padding:7px 10px;text-align:center;white-space:nowrap">
+        <button class="btn sm primary" onclick="editLedgerEntry('${r.id}')" style="margin-right:3px" title="Edit entry">✏</button>
+        <button class="btn sm dng" onclick="deleteLedgerEntry('${r.id}','${type}')" title="Delete entry">🗑</button>
+      </td>`:''}
+    </tr>`;
+  });
+
+  // Totals row
+  const totalDebit=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0);
+  const totalCredit=rows.reduce((s,r)=>s+(parseFloat(r.credit)||0),0);
+  html+=`<tr style="background:${accentColor}15;font-weight:700;border-top:2px solid ${accentColor}">
+    <td colspan="4" style="padding:9px 10px;color:${accentColor}">TOTAL</td>
+    <td style="padding:9px 10px;text-align:right;color:#c62828">₹${fmt(totalDebit)}</td>
+    <td style="padding:9px 10px;text-align:right;color:#2e7d32">₹${fmt(totalCredit)}</td>
+    <td style="padding:9px 10px;text-align:right;color:${balance>0?'#c62828':balance<0?'#2e7d32':'#333'}">₹${fmt(Math.abs(balance))}${balance<0?' (Adv)':''}</td>
+    <td colspan="${isAdmin?3:2}"></td>
+  </tr>`;
+  html+='</tbody></table>';
+  return html;
+}
+
+function buildSummaryBar(rows, type, partyName){
+  const totalDebit=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0);
+  const totalCredit=rows.reduce((s,r)=>s+(parseFloat(r.credit)||0),0);
+  const balance=totalDebit-totalCredit;
+  const overdueRows=rows.filter(r=>{
+    if(!r.due_date)return false;
+    return daysRemaining(r.due_date)<0&&(parseFloat(r.debit)||0)>0;
+  });
+  const color=type==='SUPPLIER'?'#185FA5':'#e65100';
+  return `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+    <div style="flex:1;min-width:140px;background:${color}10;border:1px solid ${color}30;border-radius:8px;padding:10px 14px">
+      <div style="font-size:11px;color:#888;margin-bottom:2px">Total Billed</div>
+      <div style="font-size:16px;font-weight:700;color:#c62828">₹${fmt(totalDebit)}</div>
+    </div>
+    <div style="flex:1;min-width:140px;background:#e8f5e910;border:1px solid #a5d6a7;border-radius:8px;padding:10px 14px">
+      <div style="font-size:11px;color:#888;margin-bottom:2px">Total Paid / Credit</div>
+      <div style="font-size:16px;font-weight:700;color:#2e7d32">₹${fmt(totalCredit)}</div>
+    </div>
+    <div style="flex:1;min-width:140px;background:${balance>0?'#ffebee':'#e8f5e9'};border:1px solid ${balance>0?'#ef9a9a':'#a5d6a7'};border-radius:8px;padding:10px 14px">
+      <div style="font-size:11px;color:#888;margin-bottom:2px">${balance>0?'Balance Due':'Advance'}</div>
+      <div style="font-size:16px;font-weight:700;color:${balance>0?'#c62828':'#2e7d32'}">₹${fmt(Math.abs(balance))}</div>
+    </div>
+    ${overdueRows.length?`<div style="flex:1;min-width:140px;background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:10px 14px">
+      <div style="font-size:11px;color:#888;margin-bottom:2px">Overdue Bills</div>
+      <div style="font-size:16px;font-weight:700;color:#c62828">🔴 ${overdueRows.length}</div>
+    </div>`:''}
+  </div>`;
+}
+
+function fmt(n){return Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+function renderSupplierLedger(){
+  const party=document.getElementById('sl-party')?.value||'';
+  const sumEl=document.getElementById('sl-summary');
+  const tblEl=document.getElementById('sl-table');
+  const ftrEl=document.getElementById('sl-footer');
+  if(!party){
+    if(tblEl)tblEl.innerHTML='<div class="empty">Select a supplier to view ledger</div>';
+    if(sumEl)sumEl.style.display='none';
+    if(ftrEl)ftrEl.style.display='none';
+    return;
+  }
+  const rows=getLedgerRows(party,'SUPPLIER');
+  if(sumEl){sumEl.style.display='block';sumEl.innerHTML=buildSummaryBar(rows,'SUPPLIER',party);}
+  if(tblEl)tblEl.innerHTML=buildLedgerTable(rows,'SUPPLIER');
+  buildLedgerFooter(ftrEl);
+}
+
+function renderCustomerLedger(){
+  const party=document.getElementById('cl-party')?.value||'';
+  const sumEl=document.getElementById('cl-summary');
+  const tblEl=document.getElementById('cl-table');
+  const ftrEl=document.getElementById('cl-footer');
+  if(!party){
+    if(tblEl)tblEl.innerHTML='<div class="empty">Select a customer to view ledger</div>';
+    if(sumEl)sumEl.style.display='none';
+    if(ftrEl)ftrEl.style.display='none';
+    return;
+  }
+  const rows=getLedgerRows(party,'CUSTOMER');
+  if(sumEl){sumEl.style.display='block';sumEl.innerHTML=buildSummaryBar(rows,'CUSTOMER',party);}
+  if(tblEl)tblEl.innerHTML=buildLedgerTable(rows,'CUSTOMER');
+  buildLedgerFooter(ftrEl);
+}
+
+function buildLedgerFooter(el){
+  if(!el)return;
+  el.style.display='block';
+  el.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between">
+    <div>
+      <div style="font-weight:700;margin-bottom:4px">SAI GANESH ELECTRICALS - SSE</div>
+      <div>Plot No/19/P, Shop No/9, Ground Floor</div>
+      <div>Raghavendra Colony, Suchitra, Hyderabad - 500067</div>
+      <div>GSTIN: 36ALWPD5924D1ZZ</div>
+    </div>
+    <div>
+      <div style="font-weight:700;margin-bottom:4px">Bank Details</div>
+      <div>A/C No: 50200029005060</div>
+      <div>IFSC: HDFC0000696 | Bank: HDFC</div>
+      <div>E-mail: krishnadsge@gmail.com</div>
+    </div>
+  </div>`;
+}
+
+// ── LEDGER ENTRY MODAL ────────────────────────────────────────────
+function openLedgerEntry(type, partyName=''){
+  const p=partyName||(type==='SUPPLIER'?document.getElementById('sl-party')?.value:document.getElementById('cl-party')?.value)||'';
+  document.getElementById('le-type').value=type;
+  document.getElementById('le-editing-id').value='';
+  document.getElementById('ledgerModalTitle').textContent=(type==='SUPPLIER'?'📦':'👥')+' Add '+type.charAt(0)+type.slice(1).toLowerCase()+' Ledger Entry';
+  document.getElementById('le-party').value=p;
+  document.getElementById('le-date').value=today();
+  document.getElementById('le-place').value='';
+  document.getElementById('le-billno').value='';
+  document.getElementById('le-remarks').value='';
+  document.getElementById('le-debit').value='';
+  document.getElementById('le-credit').value='';
+  document.getElementById('le-credit-days').value='';
+  document.getElementById('le-due-preview').textContent='';
+  document.getElementById('le-balance-preview').style.display='none';
+  document.getElementById('ledgerModal').style.display='flex';
+  setTimeout(()=>document.getElementById(p?'le-date':'le-party').focus(),100);
+}
+
+function closeLedgerModal(){document.getElementById('ledgerModal').style.display='none';}
+
+function previewLEBalance(){
+  const party=document.getElementById('le-party').value.trim();
+  const type=document.getElementById('le-type').value;
+  if(!party||!type){document.getElementById('le-balance-preview').style.display='none';return;}
+  const rows=getLedgerRows(party,type);
+  const existing=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0)-(parseFloat(r.credit)||0),0);
+  const newD=parseFloat(document.getElementById('le-debit').value)||0;
+  const newC=parseFloat(document.getElementById('le-credit').value)||0;
+  const newBal=existing+newD-newC;
+  const prev=document.getElementById('le-balance-preview');
+  prev.style.display='block';
+  prev.style.background=newBal>0?'#ffebee':'#e8f5e9';
+  prev.style.color=newBal>0?'#c62828':'#2e7d32';
+  prev.textContent='After this entry — Balance: ₹'+fmt(Math.abs(newBal))+(newBal<0?' (Advance)':'');
+}
+
+async function saveLedgerEntry(){
+  const party=(document.getElementById('le-party').value||'').trim();
+  const date=document.getElementById('le-date').value;
+  const type=document.getElementById('le-type').value;
+  const editId=document.getElementById('le-editing-id').value;
+  if(!party){toast('Party name required','err');return;}
+  if(!date){toast('Date required','err');return;}
+  const debit=parseFloat(document.getElementById('le-debit').value)||0;
+  const credit=parseFloat(document.getElementById('le-credit').value)||0;
+  if(!debit&&!credit){toast('Enter Debit or Credit amount','err');return;}
+  const lecd=parseInt(document.getElementById('le-credit-days')?.value)||0;
+  const payload={
+    party_name:party,
+    ledger_type:type,
+    date,
+    place:(document.getElementById('le-place').value||'').trim(),
+    bill_no:(document.getElementById('le-billno').value||'').trim(),
+    remarks:(document.getElementById('le-remarks').value||'').trim(),
+    debit,
+    credit,
+    due_date:lecd>0?calcMaturityDate(date,lecd):null
+  };
+  try{
+    if(editId){
+      await api('PATCH','ledger_entries?id=eq.'+editId,payload);
+      const idx=ledgerEntries.findIndex(e=>e.id===editId);
+      if(idx>=0)ledgerEntries[idx]={...ledgerEntries[idx],...payload};
+      toast('Entry updated ✓','ok');
+    } else {
+      const res=await api('POST','ledger_entries',payload);
+      ledgerEntries.push(res[0]||{id:'loc_'+Date.now(),...payload});
+      toast('Entry saved ✓','ok');
+      // Auto-save party to master
+      await autoSaveParty(party, type);
+    }
+    closeLedgerModal();
+    populateLedgerDropdowns();
+    if(type==='SUPPLIER')renderSupplierLedger();
+    else renderCustomerLedger();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+function editLedgerEntry(id){
+  const e=ledgerEntries.find(x=>x.id===id);
+  if(!e)return;
+  document.getElementById('le-type').value=e.ledger_type;
+  document.getElementById('le-editing-id').value=e.id;
+  document.getElementById('ledgerModalTitle').textContent='✏ Edit Ledger Entry';
+  document.getElementById('le-party').value=e.party_name;
+  document.getElementById('le-date').value=e.date;
+  document.getElementById('le-place').value=e.place||'';
+  document.getElementById('le-billno').value=e.bill_no||'';
+  document.getElementById('le-remarks').value=e.remarks||'';
+  document.getElementById('le-debit').value=e.debit||'';
+  document.getElementById('le-credit').value=e.credit||'';
+  // Compute credit days back from due_date and bill date
+  if(e.due_date&&e.date){
+    const d1=new Date(e.date),d2=new Date(e.due_date);
+    const diff=Math.round((d2-d1)/(1000*60*60*24));
+    document.getElementById('le-credit-days').value=diff>0?diff:'';
+  } else {
+    document.getElementById('le-credit-days').value='';
+  }
+  leUpdateDuePreview();
+  document.getElementById('le-balance-preview').style.display='none';
+  document.getElementById('ledgerModal').style.display='flex';
+}
+
+async function deleteLedgerEntry(id, type){
+  if(!confirm('Delete this entry?'))return;
+  try{
+    await api('DELETE','ledger_entries?id=eq.'+id);
+    ledgerEntries=ledgerEntries.filter(e=>e.id!==id);
+    toast('Entry deleted','ok');
+    if(type==='SUPPLIER')renderSupplierLedger();
+    else renderCustomerLedger();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ── PRINT LEDGER ──────────────────────────────────────────────────
+function printLedger(type){
+  const partyEl=type==='SUPPLIER'?document.getElementById('sl-party'):document.getElementById('cl-party');
+  const party=partyEl?.value||'';
+  if(!party){toast('Select a party first','err');return;}
+  const rows=getLedgerRows(party,type);
+  if(!rows.length){toast('No entries to print','err');return;}
+  const totalDebit=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0);
+  const totalCredit=rows.reduce((s,r)=>s+(parseFloat(r.credit)||0),0);
+  const balance=totalDebit-totalCredit;
+  let runBal=0;
+  const rowsHtml=rows.map(r=>{
+    const d=parseFloat(r.debit)||0,c=parseFloat(r.credit)||0;
+    runBal+=d-c;
+    const dRem=r.due_date?daysRemaining(r.due_date):null;
+    const overdueStr=dRem===null?'--':dRem<0?Math.abs(dRem)+'d overdue':dRem===0?'Today':dRem+'d left';
+    const cls=dRem!==null&&dRem<0?'class="lp-overdue"':c>0&&d===0?'class="lp-credit-row"':'';
+    return `<tr ${cls}>
+      <td>${r.date}</td>
+      <td>${r.place||'--'}</td>
+      <td>${r.remarks||'--'}</td>
+      <td>${r.bill_no||'--'}</td>
+      <td style="text-align:right">${d>0?'₹'+fmt(d):'--'}</td>
+      <td style="text-align:right">${c>0?'₹'+fmt(c):'--'}</td>
+      <td style="text-align:right;font-weight:700">₹${fmt(Math.abs(runBal))}${runBal<0?' Adv':''}</td>
+      <td style="text-align:center">${r.due_date||'--'}</td>
+      <td style="text-align:center">${overdueStr}</td>
+    </tr>`;
+  }).join('');
+  const html=`
+    <div style="text-align:center;margin-bottom:8px">
+      <div style="font-size:16px;font-weight:700">SAI GANESH ELECTRICALS - SSE</div>
+      <div style="font-size:11px">Plot No/19/P, Shop No/9, Ground Floor, Raghavendra Colony, Suchitra, Hyderabad - 500067</div>
+      <div style="font-size:11px">GSTIN: 36ALWPD5924D1ZZ | Email: krishnadsge@gmail.com</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px">
+      <div><strong>${type==='SUPPLIER'?'Supplier':'Customer'} Statement:</strong> ${party}</div>
+      <div><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN')}</div>
+    </div>
+    <table class="lp-table">
+      <thead><tr>
+        <th>Date</th><th>Place</th><th>Remarks</th><th>Bill No</th>
+        <th>Debit</th><th>Credit</th><th>Balance</th><th>Due On</th><th>Overdue</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+      <tfoot><tr style="font-weight:700;background:#f5f5f5">
+        <td colspan="4" style="padding:6px 8px">TOTAL</td>
+        <td style="text-align:right;padding:6px 8px">₹${fmt(totalDebit)}</td>
+        <td style="text-align:right;padding:6px 8px">₹${fmt(totalCredit)}</td>
+        <td style="text-align:right;padding:6px 8px">₹${fmt(Math.abs(balance))}${balance<0?' Adv':''}</td>
+        <td colspan="2"></td>
+      </tr></tfoot>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:10px;border-top:1px solid #ccc;padding-top:8px">
+      <div>
+        <strong>Bank Details:</strong> SAI GANESH ELECTRICALS - SSE<br>
+        A/C No: 50200029005060 | IFSC: HDFC0000696 | Bank: HDFC
+      </div>
+      <div style="text-align:right">
+        <strong>Closing Balance: ₹${fmt(Math.abs(balance))}${balance<0?' (Advance)':''}</strong><br>
+        Generated: ${new Date().toLocaleString('en-IN')}
+      </div>
+    </div>`;
+  document.getElementById('ledger-print-content').innerHTML=html;
+  window.print();
+}
+
+// ══════════════════════════════════════════════════════════════════
+
+function switchCLTabWithParty(){
+  // Carry the party name from manual entry into the statement dropdown
+  const party=(document.getElementById('me-party')?.value||'').trim();
+  switchCLTab('statement');
+  if(party){
+    const sel=document.getElementById('cl-party');
+    if(sel){sel.value=party;renderCustomerLedger();}
+  }
+}
+
+function exportLedgerExcel(type){
+  const partyEl=type==='SUPPLIER'?document.getElementById('sl-party'):document.getElementById('cl-party');
+  const party=partyEl?.value||'';
+  if(!party){toast('Select a party first','err');return;}
+  const rows=getLedgerRows(party,type);
+  if(!rows.length){toast('No entries to export','err');return;}
+  const totalDebit=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0);
+  const totalCredit=rows.reduce((s,r)=>s+(parseFloat(r.credit)||0),0);
+  const balance=totalDebit-totalCredit;
+  let runBal=0;
+  const data=[
+    ['SAI GANESH ELECTRICALS - SSE'],
+    ['Plot No/19/P, Shop No/9, Ground Floor, Raghavendra Colony, Suchitra, Hyderabad - 500067'],
+    ['GSTIN: 36ALWPD5924D1ZZ | Email: krishnadsge@gmail.com'],
+    [],
+    [(type==='SUPPLIER'?'Supplier':'Customer')+' Statement: '+party],
+    ['Generated: '+new Date().toLocaleString('en-IN')],
+    [],
+    ['Date','Place','Remarks','Bill No','Debit (₹)','Credit (₹)','Balance (₹)','Due On','Overdue By Days']
+  ];
+  rows.forEach(r=>{
+    const d=parseFloat(r.debit)||0,c=parseFloat(r.credit)||0;
+    runBal+=d-c;
+    const dRem=r.due_date?daysRemaining(r.due_date):null;
+    const overdueStr=dRem===null?'':dRem<0?Math.abs(dRem)+' days overdue':dRem===0?'Due Today':dRem+' days left';
+    data.push([r.date,r.place||'',r.remarks||'',r.bill_no||'',d||'',c||'',Math.abs(runBal)+(runBal<0?' (Adv)':''),r.due_date||'',overdueStr]);
+  });
+  data.push([]);
+  data.push(['','','','TOTAL',totalDebit,totalCredit,Math.abs(balance)+(balance<0?' (Advance)':''),'','']);
+  data.push([]);
+  data.push(['Bank Details: SAI GANESH ELECTRICALS - SSE']);
+  data.push(['A/C No: 50200029005060 | IFSC: HDFC0000696 | Bank: HDFC']);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:12},{wch:16},{wch:36},{wch:18},{wch:14},{wch:14},{wch:14},{wch:12},{wch:16}];
+  // Bold the header row
+  XLSX.utils.book_append_sheet(wb,ws,party.substring(0,31));
+  XLSX.writeFile(wb,(type==='SUPPLIER'?'Supplier':'Customer')+'_Statement_'+party.replace(/[^a-z0-9]/gi,'_')+'_'+today()+'.xlsx');
+  toast('Excel exported ✓','ok');
+}
+
+function setMECredit(days){
+  const el=document.getElementById('me-credit-days');
+  if(el){el.value=days;meUpdateDuePreview();}
+}
+function meUpdateDuePreview(){
+  const cd=parseInt(document.getElementById('me-credit-days')?.value)||0;
+  const dateVal=document.getElementById('me-date')?.value||today();
+  const prev=document.getElementById('me-due-preview');
+  if(!prev)return;
+  if(!cd){prev.textContent='Cash / Immediate';prev.style.color='#888';return;}
+  const mat=calcMaturityDate(dateVal,cd);
+  const dRem=daysRemaining(mat);
+  let color=dRem<0?'#c62828':dRem<=7?'#f57c00':'#2e7d32';
+  prev.innerHTML='📅 Due: <strong style="color:'+color+'">'+mat+'</strong> <span style="font-size:12px;color:'+color+'">('+( dRem<0?Math.abs(dRem)+'d overdue':dRem===0?'Today':dRem+'d left')+')</span>';
+}
+function setLECredit(days){
+  const el=document.getElementById('le-credit-days');
+  if(el){el.value=days;leUpdateDuePreview();}
+}
+function leUpdateDuePreview(){
+  const cd=parseInt(document.getElementById('le-credit-days')?.value)||0;
+  const dateVal=document.getElementById('le-date')?.value||today();
+  const prev=document.getElementById('le-due-preview');
+  if(!prev)return;
+  if(!cd){prev.textContent='Cash / Immediate';prev.style.color='#888';return;}
+  const mat=calcMaturityDate(dateVal,cd);
+  const dRem=daysRemaining(mat);
+  let color=dRem<0?'#c62828':dRem<=7?'#f57c00':'#2e7d32';
+  prev.innerHTML='📅 Due: <strong style="color:'+color+'">'+mat+'</strong> <span style="font-size:12px;color:'+color+'">('+( dRem<0?Math.abs(dRem)+'d overdue':dRem===0?'Today':dRem+'d left')+')</span>';
+}
+
+// ── CUSTOMER LEDGER TABS ──────────────────────────────────────────
+function switchCLTab(tab){
+  document.getElementById('cl-tab-statement').style.display=tab==='statement'?'block':'none';
+  document.getElementById('cl-tab-entry').style.display=tab==='entry'?'block':'none';
+  document.getElementById('cl-btn-stmt').style.background=tab==='statement'?'#e65100':'#fff';
+  document.getElementById('cl-btn-stmt').style.color=tab==='statement'?'#fff':'#e65100';
+  document.getElementById('cl-btn-entry').style.background=tab==='entry'?'#e65100':'#fff';
+  document.getElementById('cl-btn-entry').style.color=tab==='entry'?'#fff':'#e65100';
+  if(tab==='entry'){
+    setupAC('me-party');
+    document.getElementById('me-date').value=today();
+    meCalcBalance();
+  }
+}
+
+function meToggleType(){
+  const t=document.getElementById('me-entry-type').value;
+  const dl=document.getElementById('me-debit-label');
+  const cl=document.getElementById('me-credit-label');
+  const dd=document.getElementById('me-debit');
+  const cd=document.getElementById('me-credit');
+  if(t==='PAYMENT'||t==='CREDITNOTE'){
+    dl.textContent='Debit Amount (₹)';
+    cl.textContent='Credit Amount (₹) *';
+    cl.style.color='#2e7d32';
+    dd.value='';
+    cd.style.border='2px solid #2e7d32';
+  } else {
+    dl.textContent='Debit Amount (₹) *';
+    cl.textContent='Credit Amount (₹)';
+    cl.style.color='';
+    cd.value='';
+    dd.style.border='2px solid #e65100';
+  }
+  meCalcBalance();
+}
+
+function meCalcBalance(){
+  const party=(document.getElementById('me-party')?.value||'').trim();
+  const prev=document.getElementById('me-balance-preview');
+  if(!prev)return;
+  const newD=parseFloat(document.getElementById('me-debit').value)||0;
+  const newC=parseFloat(document.getElementById('me-credit').value)||0;
+  if(!party){prev.textContent='Enter party name first';prev.style.background='#f5f5f5';prev.style.color='#999';return;}
+  const rows=getLedgerRows(party,'CUSTOMER');
+  const existing=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0)-(parseFloat(r.credit)||0),0);
+  const newBal=existing+newD-newC;
+  prev.style.background=newBal>0?'#ffebee':'#e8f5e9';
+  prev.style.color=newBal>0?'#c62828':'#2e7d32';
+  prev.textContent='Balance after: ₹'+fmt(Math.abs(newBal))+(newBal<0?' (Advance)':'');
+  // Show recent entries
+  if(party)showMeRecent(party);
+}
+
+function meTotalBalance(){
+  meCalcBalance();
+}
+
+function showMeRecent(party){
+  const rows=getLedgerRows(party,'CUSTOMER');
+  const card=document.getElementById('me-recent-card');
+  const tbl=document.getElementById('me-recent-table');
+  const ttl=document.getElementById('me-recent-title');
+  if(!rows.length){if(card)card.style.display='none';return;}
+  if(card)card.style.display='block';
+  if(ttl)ttl.textContent='Entries for '+party+' ('+rows.length+' total)';
+  let bal=0;
+  const last=rows.slice(-8); // show last 8
+  if(tbl)tbl.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#e65100;color:#fff"><th style="padding:6px 8px;text-align:left">Date</th><th style="padding:6px 8px;text-align:left">Remarks</th><th style="padding:6px 8px;text-align:left">Bill No</th><th style="padding:6px 8px;text-align:right">Debit</th><th style="padding:6px 8px;text-align:right">Credit</th><th style="padding:6px 8px;text-align:right">Balance</th></tr></thead><tbody>'+
+    rows.map(r=>{
+      const d=parseFloat(r.debit)||0,c=parseFloat(r.credit)||0;
+      bal+=d-c;
+      const isRecent=last.includes(r);
+      return `<tr style="border-bottom:1px solid #f0f0f0;${!isRecent?'opacity:0.4':''}"><td style="padding:5px 8px">${r.date}</td><td style="padding:5px 8px;color:#555;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.remarks||'--'}</td><td style="padding:5px 8px;color:#185FA5;font-size:11px">${r.bill_no||'--'}</td><td style="padding:5px 8px;text-align:right;color:${d>0?'#c62828':'#999'}">${d>0?'₹'+fmt(d):'--'}</td><td style="padding:5px 8px;text-align:right;color:${c>0?'#2e7d32':'#999'}">${c>0?'₹'+fmt(c):'--'}</td><td style="padding:5px 8px;text-align:right;font-weight:700;color:${bal>0?'#c62828':'#2e7d32'}">₹${fmt(Math.abs(bal))}</td></tr>`;
+    }).join('')+'</tbody></table>';
+}
+
+async function saveManualEntry(){
+  const party=(document.getElementById('me-party').value||'').trim();
+  const date=document.getElementById('me-date').value;
+  const entryType=document.getElementById('me-entry-type').value;
+  if(!party){toast('Customer name required','err');return;}
+  if(!date){toast('Date required','err');return;}
+  const debit=parseFloat(document.getElementById('me-debit').value)||0;
+  const credit=parseFloat(document.getElementById('me-credit').value)||0;
+  if(!debit&&!credit){toast('Enter Debit or Credit amount','err');return;}
+  const billno=(document.getElementById('me-billno').value||'').trim();
+  const remarks=(document.getElementById('me-remarks').value||'').trim()||(entryType==='PAYMENT'?'Payment Received':entryType==='CREDITNOTE'?'Credit Note':'Bill');
+  const cd=parseInt(document.getElementById('me-credit-days')?.value)||0;
+  const due_date=cd>0?calcMaturityDate(date,cd):null;
+  const payload={
+    party_name:party,
+    ledger_type:'CUSTOMER',
+    date,
+    place:(document.getElementById('me-place').value||'').trim(),
+    bill_no:billno,
+    remarks,
+    debit,
+    credit,
+    due_date
+  };
+  try{
+    const res=await api('POST','ledger_entries',payload);
+    ledgerEntries.push(res[0]||{id:'loc_'+Date.now(),...payload,created_at:new Date().toISOString()});
+    await autoSaveParty(party,'CUSTOMER');
+    populateLedgerDropdowns();
+    const statusEl=document.getElementById('me-save-status');
+    statusEl.textContent='✅ Saved! '+(debit>0?'Bill ₹'+fmt(debit):credit>0?'Payment ₹'+fmt(credit):'');
+    setTimeout(()=>{statusEl.textContent='';},3000);
+    // Clear amount fields but keep party/date for quick successive entry
+    document.getElementById('me-debit').value='';
+    document.getElementById('me-credit').value='';
+    document.getElementById('me-billno').value='';
+    document.getElementById('me-remarks').value='';
+    document.getElementById('me-duedate').value='';
+    meCalcBalance();
+    toast('Entry saved ✓','ok');
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+function clearManualEntry(){
+  ['me-party','me-place','me-billno','me-remarks','me-debit','me-credit','me-credit-days'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('me-date').value=today();
+  document.getElementById('me-duedate').value='';
+  document.getElementById('me-entry-type').value='BILL';
+  document.getElementById('me-balance-preview').textContent='Balance will show here';
+  document.getElementById('me-balance-preview').style.background='#f5f5f5';
+  document.getElementById('me-balance-preview').style.color='#999';
+  document.getElementById('me-recent-card').style.display='none';
+  meToggleType();
 }
 
 // ── STOCK OUT CREDIT DAYS HELPERS ────────────────────────────────
