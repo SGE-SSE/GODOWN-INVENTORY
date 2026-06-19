@@ -824,7 +824,10 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     </div>
   </div>
   <div class="card">
-    <div class="card-title">Damage / Return History</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div class="card-title" style="margin-bottom:0">Damage / Return History</div>
+      <button class="btn sm" style="background:#1d6f42;color:#fff;border-color:#1d6f42" onclick="exportDmgXLSX()">📊 Excel</button>
+    </div>
     <div class="sbar" style="gap:8px;flex-wrap:wrap">
       <input id="dmg-search" placeholder="🔍 Search..." oninput="renderDmgHistory()" style="flex:2;min-width:160px;margin-bottom:0"/>
       <select id="dmg-hist-type" onchange="renderDmgHistory()" style="flex:0 0 130px;margin-bottom:0"><option value="">All</option><option value="DAMAGE">Damage Only</option><option value="RETURN">Return Only</option></select>
@@ -3166,13 +3169,38 @@ function renderDmgHistory(){
   let list=txns.filter(t=>(t.note||'').startsWith('[DAMAGE]')||(t.note||'').startsWith('[RETURN]'));
   if(typeF==='DAMAGE')list=list.filter(t=>(t.note||'').startsWith('[DAMAGE]'));
   if(typeF==='RETURN')list=list.filter(t=>(t.note||'').startsWith('[RETURN]'));
-  if(search)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);return (it?it.name:'').toLowerCase().includes(search)||(t.note||'').toLowerCase().includes(search);});
+  if(search)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);const party=t.customer||t.supplier||'';return (it?it.name:'').toLowerCase().includes(search)||(t.note||'').toLowerCase().includes(search)||party.toLowerCase().includes(search);});
   list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
   if(!list.length){tbl.innerHTML='<div class="empty">No damage or return entries found.</div>';return;}
-  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Note / Remarks</th><th>By</th></tr></thead><tbody>'+
-    list.map((t,idx)=>{const it=items.find(i=>i.id===t.item_id);const isDmg=(t.note||'').startsWith('[DAMAGE]');
-      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
+  tbl.innerHTML='<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Brand</th><th>Qty</th><th>Party</th><th>Note / Remarks</th><th>By</th></tr></thead><tbody>'+
+    list.map((t,idx)=>{const it=items.find(i=>i.id===t.item_id);const isDmg=(t.note||'').startsWith('[DAMAGE]');const party=t.customer||t.supplier||'--';
+      return '<tr style="background:'+(idx%2===0?'#fff':'#fafafa')+'"><td>'+t.date+'</td><td><span class="'+(isDmg?'dmg-badge':'rtn-badge')+'">'+(isDmg?'🔴 DAMAGE':'🟢 RETURN')+'</span></td><td style="font-weight:600">'+(it?it.name:'?')+'</td><td style="color:#185FA5">'+(it?it.brand||'--':'--')+'</td><td style="font-weight:700;color:'+(isDmg?'#c62828':'#2e7d32')+'">'+t.qty+' '+(it?it.unit:'')+'</td><td style="font-size:12px">'+party+'</td><td style="font-size:12px">'+(t.note||'--').replace('[DAMAGE] ','').replace('[RETURN] ','')+'</td><td>'+(t.operator?'<span class="op-badge">'+t.operator+'</span>':'--')+'</td></tr>';
     }).join('')+'</tbody></table>';
+}
+
+function getDmgHistFiltered(){
+  const search=(document.getElementById('dmg-search')?.value||'').toLowerCase();
+  const typeF=document.getElementById('dmg-hist-type')?.value||'';
+  let list=txns.filter(t=>(t.note||'').startsWith('[DAMAGE]')||(t.note||'').startsWith('[RETURN]'));
+  if(typeF==='DAMAGE')list=list.filter(t=>(t.note||'').startsWith('[DAMAGE]'));
+  if(typeF==='RETURN')list=list.filter(t=>(t.note||'').startsWith('[RETURN]'));
+  if(search)list=list.filter(t=>{const it=items.find(i=>i.id===t.item_id);const party=t.customer||t.supplier||'';return (it?it.name:'').toLowerCase().includes(search)||(t.note||'').toLowerCase().includes(search)||party.toLowerCase().includes(search);});
+  list.sort((a,b)=>b.date>a.date?1:b.date<a.date?-1:0);
+  return list;
+}
+
+function exportDmgXLSX(){
+  const list=getDmgHistFiltered();
+  if(!list.length){toast('No data to export','err');return;}
+  const ws_data=[['Date','Type','Item','Brand','Qty','Unit','Party','Note / Remarks','By']];
+  list.forEach(t=>{
+    const it=items.find(i=>i.id===t.item_id);
+    const isDmg=(t.note||'').startsWith('[DAMAGE]');
+    const party=t.customer||t.supplier||'';
+    const note=(t.note||'').replace('[DAMAGE] ','').replace('[RETURN] ','');
+    ws_data.push([t.date,isDmg?'DAMAGE':'RETURN',it?it.name:'?',it?it.brand||'':'',t.qty,it?it.unit:'',party,note,t.operator||'']);
+  });
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:12},{wch:10},{wch:30},{wch:14},{wch:8},{wch:8},{wch:22},{wch:22},{wch:14}];XLSX.utils.book_append_sheet(wb,ws,'Damage-Return');XLSX.writeFile(wb,'SGE-SSE-DamageReturn-'+today()+'.xlsx');toast('Exported to Excel!','ok');
 }
 
 // == BILLS DUE PAGE ==
