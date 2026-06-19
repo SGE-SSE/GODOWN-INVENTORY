@@ -1119,8 +1119,8 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
 <style>
 @media print {
-  body > *:not(#ledger-print-area) { display: none !important; }
-  #ledger-print-area { display: block !important; }
+  body.printing-ledger > *:not(#ledger-print-area) { display: none !important; }
+  body.printing-ledger #ledger-print-area { display: block !important; }
   #ledger-print-content { font-family: Arial, sans-serif; font-size: 11px; }
   .lp-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
   .lp-table th { background: #185FA5; color: #fff; padding: 6px 8px; text-align: left; font-size: 10px; }
@@ -3662,7 +3662,9 @@ function printLedger(type){
       </div>
     </div>`;
   document.getElementById('ledger-print-content').innerHTML=html;
+  document.body.classList.add('printing-ledger');
   window.print();
+  setTimeout(()=>{document.body.classList.remove('printing-ledger');},1000);
 }
 
 // ══════════════════════════════════════════════════════════════════
