@@ -172,6 +172,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('pending',this)" id="pendingNavBtn" style="display:none">💳 Pending</button>
   <button onclick="go('stockvalue',this)">💰 Stock Value</button>
   <button onclick="go('dmgrtn',this)">🔧 DMG/RTN</button>
+  <button onclick="go('dupmerge',this)">🧹 Merge Duplicates</button>
   <button onclick="go('bills',this)" id="billsTab" style="display:none">🔔 Bills Due</button>
 </nav>
 
@@ -1124,6 +1125,30 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <button class="btn" onclick="closeLedgerModal()">Cancel</button>
       <button class="btn primary" onclick="saveLedgerEntry()">💾 Save Entry</button>
     </div>
+  </div>
+</div>
+
+<!-- MERGE DUPLICATES -->
+<div id="page-dupmerge" class="page">
+  <div class="card">
+    <div class="card-title">🧹 Duplicate Item Finder &amp; Merge <span style="font-size:11px;font-weight:400;color:#888">({{LOC}} only — items in the other location aren't touched</span></span></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <button class="btn primary" onclick="scanDupGroups()">🔄 Scan for duplicates</button>
+      <button class="btn" onclick="backupData()">⬇ Download backup first</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#555;cursor:pointer"><input type="checkbox" id="dup-ignoreBrand" onchange="scanDupGroups()"> Ignore brand when grouping</label>
+    </div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Groups items with the same name + brand in <span id="dup-locLabel"></span>. Nothing merges until you review a group and press its Merge button.</div>
+    <div id="dupSummary"></div>
+  </div>
+  <div id="dupGroupsWrap"></div>
+  <div class="card">
+    <div class="card-title" style="font-size:14px">Manual merge (for spelling/spacing differences the scan misses)</div>
+    <input id="dupManualSearch" placeholder="Type part of an item name..." oninput="renderDupManual()" style="padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:280px"/>
+    <div id="dupManualList" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="font-size:14px">Activity Log</div>
+    <div id="dupLog" style="background:#0f172a;color:#c8d6e5;font-family:ui-monospace,Consolas,monospace;font-size:12px;padding:12px;border-radius:8px;max-height:200px;overflow-y:auto;white-space:pre-wrap">Nothing yet — click Scan above.</div>
   </div>
 </div>
 
