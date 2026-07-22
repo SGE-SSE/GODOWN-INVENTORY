@@ -2291,11 +2291,18 @@ function renderClosingStock(){
 
   const wireItems=filtered.filter(isWire);
   const pipeItems=filtered.filter(isPipe);
-  const otherItems=filtered.filter(i=>!isWire(i)&&!isPipe(i));
+  let otherItems=filtered.filter(i=>!isWire(i)&&!isPipe(i));
   let html='';
 
-  // 1. WIRE colour matrix
-  if(wireItems.length) html+=buildWireMatrix(wireItems);
+  // 1. WIRE colour matrix — only covers wire names ending in a colour
+  // (RED/YELLOW/GREEN/BLUE/BLACK/WHITE/GREY). If a brand's wires don't
+  // use that naming pattern, the matrix has nothing to draw and used
+  // to just disappear entirely (still counted in "Total Items", but
+  // never shown anywhere). Fixed: fall back to listing them as normal
+  // category rows instead of silently dropping them.
+  const wireMatrixHtml=wireItems.length?buildWireMatrix(wireItems):'';
+  if(wireMatrixHtml) html+=wireMatrixHtml;
+  else if(wireItems.length) otherItems=otherItems.concat(wireItems);
 
   // 2. PIPE size matrix
   if(pipeItems.length) html+=buildPipeMatrix(pipeItems);
