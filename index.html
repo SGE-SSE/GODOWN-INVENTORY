@@ -1131,7 +1131,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 <!-- MERGE DUPLICATES -->
 <div id="page-dupmerge" class="page">
   <div class="card">
-    <div class="card-title">🧹 Duplicate Item Finder &amp; Merge <span style="font-size:11px;font-weight:400;color:#888">({{LOC}} only — items in the other location aren't touched</span></span></div>
+    <div class="card-title">🧹 Duplicate Item Finder &amp; Merge <span style="font-size:11px;font-weight:400;color:#888">(current location only — items in the other location aren't touched)</span></div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
       <button class="btn primary" onclick="scanDupGroups()">🔄 Scan for duplicates</button>
       <button class="btn" onclick="backupData()">⬇ Download backup first</button>
@@ -2564,7 +2564,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}if(name==='supplierledger'){populateLedgerDropdowns();renderSupplierLedger();}if(name==='customerledger'){populateLedgerDropdowns();renderCustomerLedger();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}if(name==='supplierledger'){populateLedgerDropdowns();renderSupplierLedger();}if(name==='customerledger'){populateLedgerDropdowns();renderCustomerLedger();}if(name==='dupmerge'){scanDupGroups();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
@@ -2744,6 +2744,156 @@ function renderFastMoving(){
   html2+='</div>';
   fmEl.innerHTML=html2;
   fmEl.style.display='block';
+}
+
+// ── MERGE DUPLICATES ────────────────────────────────────────────
+let dupAllTxnIds=null, dupTxnCounts={}, dupGroups=[];
+function dupLog(msg){
+  const el=document.getElementById('dupLog');
+  const t=new Date().toLocaleTimeString('en-IN');
+  el.textContent=(el.textContent==='Nothing yet — click Scan above.'?'':el.textContent+'\n')+'['+t+'] '+msg;
+  el.scrollTop=el.scrollHeight;
+}
+function dupNorm(s){return (s||'').toString().trim().toLowerCase().replace(/\s+/g,' ');}
+async function scanDupGroups(){
+  document.getElementById('dup-locLabel').textContent=currentLoc;
+  document.getElementById('dupSummary').innerHTML='<div class="empty">Scanning…</div>';
+  try{
+    // Full, unpaginated fetch of every transaction's item_id (not just the app's recent-500 cache) —
+    // uses the same apiAll() pagination fix as item loading, so nothing past row 1000 is missed here either.
+    dupAllTxnIds=await apiAll('transactions?select=id,item_id');
+    dupTxnCounts={};
+    dupAllTxnIds.forEach(t=>{dupTxnCounts[t.item_id]=(dupTxnCounts[t.item_id]||0)+1;});
+    renderDupGroups();
+    renderDupManual();
+    dupLog('Scan complete: '+items.length+' items in '+currentLoc+', '+dupAllTxnIds.length+' total transactions checked.');
+  }catch(e){
+    document.getElementById('dupSummary').innerHTML='<div class="empty" style="color:#c62828">Error: '+e.message+'</div>';
+    dupLog('ERROR during scan: '+e.message);
+  }
+}
+function dupGroupKey(it,ignoreBrand){return dupNorm(it.name)+'|'+(ignoreBrand?'':bK(it.brand));}
+function buildDupGroups(){
+  const ignoreBrand=document.getElementById('dup-ignoreBrand').checked;
+  const map={};
+  items.forEach(it=>{const k=dupGroupKey(it,ignoreBrand);(map[k]=map[k]||[]).push(it);});
+  return Object.values(map).filter(g=>g.length>1).sort((a,b)=>b.length-a.length);
+}
+function renderDupGroups(){
+  const wrap=document.getElementById('dupGroupsWrap');
+  if(!items.length){wrap.innerHTML='';document.getElementById('dupSummary').innerHTML='';return;}
+  dupGroups=buildDupGroups();
+  const extra=dupGroups.reduce((s,g)=>s+g.length-1,0);
+  document.getElementById('dupSummary').innerHTML='<b>'+dupGroups.length+'</b> duplicate group(s) found in '+currentLoc+' &nbsp;•&nbsp; <b>'+extra+'</b> extra item row(s) out of <b>'+items.length+'</b> total.';
+  if(!dupGroups.length){wrap.innerHTML='<div class="card" style="color:#888;font-size:13px">No exact duplicates found. Try "Ignore brand" above, or use manual merge below for spelling differences.</div>';return;}
+  wrap.innerHTML=dupGroups.map((g,gi)=>{
+    const unitsDiffer=new Set(g.map(i=>dupNorm(i.unit))).size>1;
+    let best=g[0];
+    g.forEach(it=>{
+      const bc=dupTxnCounts[best.id]||0, ic=dupTxnCounts[it.id]||0;
+      if(ic>bc||(ic===bc&&stock(it.id)>stock(best.id))) best=it;
+    });
+    const rows=g.map(it=>{
+      const tc=dupTxnCounts[it.id]||0;
+      return '<tr><td><input type="radio" name="dupkeep_'+gi+'" value="'+it.id+'" '+(it.id===best.id?'checked':'')+'></td>'+
+        '<td>'+(it.name||'')+'</td><td>'+(it.brand||'--')+'</td><td>'+(it.unit||'--')+'</td>'+
+        '<td>'+(it.opening_stock??0)+'</td><td>'+stock(it.id)+'</td><td>'+tc+'</td>'+
+        '<td style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#888" title="'+it.id+'">'+it.id.slice(0,8)+'…</td></tr>';
+    }).join('');
+    return '<div class="card">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">'+
+      '<div style="font-weight:700">'+(g[0].name||'(unnamed)')+' '+(g[0].brand?'· '+g[0].brand:'')+' <span class="badge" style="background:#fdecea;color:#c62828;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">'+g.length+' rows</span></div>'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+      '<label style="font-size:12px;color:#555;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="dupCombine_'+gi+'" checked> Add opening stock into kept item</label>'+
+      '<button class="btn primary" id="dupMergeBtn_'+gi+'" onclick="mergeDupGroup('+gi+')">✅ Merge into selected</button>'+
+      '</div></div>'+
+      (unitsDiffer?'<div style="background:#fff8e1;color:#8a6d00;padding:6px 10px;border-radius:6px;font-size:12px;margin:6px 0">⚠ These rows use different units — double check before merging.</div>':'')+
+      '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8f9fb;color:#555;font-size:11px;text-transform:uppercase"><th style="padding:6px 8px;text-align:left">Keep</th><th style="padding:6px 8px;text-align:left">Name</th><th style="padding:6px 8px;text-align:left">Brand</th><th style="padding:6px 8px;text-align:left">Unit</th><th style="padding:6px 8px;text-align:left">Opening</th><th style="padding:6px 8px;text-align:left">Stock</th><th style="padding:6px 8px;text-align:left">Txns</th><th style="padding:6px 8px;text-align:left">ID</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '</div>';
+  }).join('');
+}
+async function mergeDupGroup(gi){
+  const g=dupGroups[gi];
+  const sel=document.querySelector('input[name="dupkeep_'+gi+'"]:checked');
+  if(!sel){toast('Pick which item to keep first','err');return;}
+  const keepId=sel.value, keepItem=g.find(i=>i.id===keepId);
+  const others=g.filter(i=>i.id!==keepId);
+  const combineStock=document.getElementById('dupCombine_'+gi).checked;
+  if(!confirm('Merge '+others.length+' item row(s) into "'+keepItem.name+'"?\n\nThis will:\n- Move all their transactions onto the kept item\n'+(combineStock?'- Add their opening stock into the kept item\n':'')+'- Delete those '+others.length+' item row(s)\n\nUse your backup if you need to undo this.'))return;
+  const btn=document.getElementById('dupMergeBtn_'+gi);
+  btn.disabled=true;btn.textContent='Merging...';
+  try{
+    let addStock=0;
+    for(const o of others){
+      const tc=dupTxnCounts[o.id]||0;
+      if(tc>0){await api('PATCH','transactions?item_id=eq.'+o.id,{item_id:keepId});dupLog('Moved '+tc+' transaction(s) from '+o.id+' → '+keepId);}
+      addStock+=parseFloat(o.opening_stock)||0;
+      await api('DELETE','items?id=eq.'+o.id);
+      dupLog('Deleted duplicate item '+o.id+' ("'+o.name+'")');
+    }
+    if(combineStock&&addStock){
+      const newOpening=(parseFloat(keepItem.opening_stock)||0)+addStock;
+      await api('PATCH','items?id=eq.'+keepId,{opening_stock:newOpening});
+      dupLog('Updated opening stock on '+keepId+' to '+newOpening);
+    }
+    dupLog('✅ Group merged successfully.');
+    toast('Duplicates merged','ok');
+    await load(true);
+    await scanDupGroups();
+  }catch(e){
+    dupLog('ERROR merging group: '+e.message);
+    toast('Merge error: '+e.message,'err');
+    btn.disabled=false;btn.textContent='✅ Merge into selected';
+  }
+}
+function renderDupManual(){
+  const q=dupNorm(document.getElementById('dupManualSearch').value);
+  const el=document.getElementById('dupManualList');
+  if(!items.length){el.innerHTML='<div style="color:#888;font-size:13px">Scan first.</div>';return;}
+  if(!q){el.innerHTML='<div style="color:#888;font-size:13px">Type to search all items by name.</div>';return;}
+  const matches=items.filter(i=>dupNorm(i.name).includes(q));
+  if(!matches.length){el.innerHTML='<div style="color:#888;font-size:13px">No matches.</div>';return;}
+  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8f9fb;color:#555;font-size:11px;text-transform:uppercase"><th style="padding:6px 8px;text-align:left">Pick</th><th style="padding:6px 8px;text-align:left">Name</th><th style="padding:6px 8px;text-align:left">Brand</th><th style="padding:6px 8px;text-align:left">Unit</th><th style="padding:6px 8px;text-align:left">Opening</th><th style="padding:6px 8px;text-align:left">Stock</th><th style="padding:6px 8px;text-align:left">Txns</th><th style="padding:6px 8px;text-align:left">ID</th></tr></thead><tbody>'+
+    matches.map(it=>{
+      const tc=dupTxnCounts[it.id]||0;
+      return '<tr><td><input type="checkbox" class="dup-manual-pick" value="'+it.id+'"></td><td>'+it.name+'</td><td>'+(it.brand||'--')+'</td><td>'+(it.unit||'--')+'</td><td>'+(it.opening_stock??0)+'</td><td>'+stock(it.id)+'</td><td>'+tc+'</td><td style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#888" title="'+it.id+'">'+it.id.slice(0,8)+'…</td></tr>';
+    }).join('')+'</tbody></table>'+
+    '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+    '<select id="dupManualKeep" style="padding:6px;border-radius:6px;border:1px solid #ddd;font-size:12px"><option value="">-- choose which one to KEEP --</option>'+
+    matches.map(it=>'<option value="'+it.id+'">'+it.name+' ('+(it.brand||'--')+') '+it.id.slice(0,8)+'…</option>').join('')+
+    '</select><button class="btn primary" onclick="manualDupMerge()">✅ Merge checked items into chosen one</button></div>';
+}
+async function manualDupMerge(){
+  const picked=[...document.querySelectorAll('.dup-manual-pick:checked')].map(c=>c.value);
+  const keepId=document.getElementById('dupManualKeep').value;
+  if(!keepId){toast('Choose which item to keep','err');return;}
+  const others=picked.filter(id=>id!==keepId);
+  if(!others.length){toast('Check at least one other item to merge in','err');return;}
+  const keepItem=items.find(i=>i.id===keepId);
+  if(!confirm('Merge '+others.length+' item(s) into "'+keepItem.name+'"?\nTransactions move over, opening stock is added, duplicates deleted.'))return;
+  try{
+    let addStock=0;
+    for(const oid of others){
+      const o=items.find(i=>i.id===oid); if(!o)continue;
+      const tc=dupTxnCounts[oid]||0;
+      if(tc>0){await api('PATCH','transactions?item_id=eq.'+oid,{item_id:keepId});dupLog('Moved '+tc+' transaction(s) from '+oid+' → '+keepId);}
+      addStock+=parseFloat(o.opening_stock)||0;
+      await api('DELETE','items?id=eq.'+oid);
+      dupLog('Deleted duplicate item '+oid+' ("'+o.name+'")');
+    }
+    if(addStock){
+      const newOpening=(parseFloat(keepItem.opening_stock)||0)+addStock;
+      await api('PATCH','items?id=eq.'+keepId,{opening_stock:newOpening});
+      dupLog('Updated opening stock on '+keepId+' to '+newOpening);
+    }
+    dupLog('✅ Manual merge complete.');
+    toast('Merged','ok');
+    await load(true);
+    await scanDupGroups();
+  }catch(e){
+    dupLog('ERROR in manual merge: '+e.message);
+    toast('Error: '+e.message,'err');
+  }
 }
 
 // ── BACKUP ───────────────────────────────────────────────────────
