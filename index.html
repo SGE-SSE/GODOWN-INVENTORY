@@ -959,6 +959,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
         <select id="cl-party" onchange="renderCustomerLedger()" style="min-width:200px;margin-bottom:0;font-weight:600">
           <option value="">-- Select Customer --</option>
         </select>
+        <select id="cl-format" onchange="clFmtChanged()" style="min-width:210px;margin-bottom:0;font-weight:600" title="Choose which version of the statement to show / print / export"><option value="DETAIL">📋 Detailed Ledger (internal)</option><option value="SIMPLE">👤 Customer Statement (simple)</option></select>
         <button class="btn orange" onclick="openLedgerEntry('CUSTOMER')">+ Quick Entry</button>
         <button class="btn" onclick="printLedger('CUSTOMER')" style="background:#185FA5;color:#fff;border-color:#185FA5">🖨 Print / PDF</button>
         <button class="btn" onclick="exportLedgerExcel('CUSTOMER')" style="background:#2e7d32;color:#fff;border-color:#2e7d32">📊 Excel</button>
@@ -1140,11 +1141,23 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
   <div id="ct-syncbar" class="card" style="padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px"></div>
 
-  <div class="grid4">
-    <div class="metric"><div class="ml">Opening Balance</div><div class="mv info" id="ct-open">₹0</div></div>
-    <div class="metric"><div class="ml">Cash IN</div><div class="mv success" id="ct-in">₹0</div></div>
-    <div class="metric"><div class="ml">Cash OUT</div><div class="mv danger" id="ct-out">₹0</div></div>
-    <div class="metric"><div class="ml">Closing Balance</div><div class="mv" id="ct-close">₹0</div></div>
+  <div class="card" style="padding:12px 16px">
+    <div class="card-title" style="margin-bottom:8px">💵 General Cash <span style="font-size:11px;font-weight:400;color:#888">(selected period)</span></div>
+    <div class="grid4">
+      <div class="metric"><div class="ml">Opening</div><div class="mv info" id="ct-g-open">₹0</div></div>
+      <div class="metric"><div class="ml">Cash IN</div><div class="mv success" id="ct-g-in">₹0</div></div>
+      <div class="metric"><div class="ml">Cash OUT</div><div class="mv danger" id="ct-g-out">₹0</div></div>
+      <div class="metric"><div class="ml">General Cash Closing</div><div class="mv" id="ct-g-close">₹0</div></div>
+    </div>
+  </div>
+  <div class="card" style="padding:12px 16px;border-left:4px solid #f9a825">
+    <div class="card-title" style="margin-bottom:8px">🪙 Petty Cash <span style="font-size:11px;font-weight:400;color:#888">(separate book — not included in General Cash)</span></div>
+    <div class="grid4">
+      <div class="metric"><div class="ml">Opening</div><div class="mv info" id="ct-p-open">₹0</div></div>
+      <div class="metric"><div class="ml">Cash IN</div><div class="mv success" id="ct-p-in">₹0</div></div>
+      <div class="metric"><div class="ml">Cash OUT</div><div class="mv danger" id="ct-p-out">₹0</div></div>
+      <div class="metric"><div class="ml">Petty Cash Closing</div><div class="mv" id="ct-p-close">₹0</div></div>
+    </div>
   </div>
 
   <div class="card">
@@ -1159,7 +1172,13 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <div class="fg"><label>Paid To / Received From (Party)</label><input id="ct-party" list="ct-partylist" autocomplete="off" placeholder="Type or pick party" onchange="ctLinkRefresh(true)"/><datalist id="ct-partylist"></datalist></div>
       <div class="fg"><label>Amount (₹)</label><input type="number" id="ct-amt" min="0" step="0.01" placeholder="0.00" oninput="ctLinkSummary()" onchange="ctLinkRefresh(true)"/></div>
       <div class="fg"><label>Mode</label>
-        <select id="ct-mode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Cheque</option></select></div>
+        <select id="ct-mode" onchange="ctModeChanged()"><option>Cash</option><option>UPI</option><option>Bank</option><option>Cheque</option></select></div>
+    </div>
+    <div class="frow c3">
+      <div class="fg"><label>Cash Book</label>
+        <select id="ct-book"><option value="GENERAL">💵 General Cash</option><option value="PETTY">🪙 Petty Cash</option></select></div>
+      <div class="fg" id="ct-upi-wrap" style="display:none"><label>UPI Holder Name *</label>
+        <input id="ct-upi" placeholder="Name of the UPI account holder"/></div>
     </div>
     <div class="frow c2">
       <div class="fg"><label>Description / Purpose</label><input id="ct-desc" placeholder="e.g. Cash received from client against bills"/></div>
@@ -1194,8 +1213,9 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
 
   <div class="card">
-    <div class="card-title">Cash Book</div>
+    <div class="card-title" id="ct-book-title">Cash Book</div>
     <div class="sbar">
+      <select id="ct-bookview" onchange="ctBookViewChanged()" style="font-weight:700"><option value="GENERAL">💵 General Cash</option><option value="PETTY">🪙 Petty Cash</option></select>
       <input type="date" id="ct-from" onchange="ctRender()" title="From"/>
       <input type="date" id="ct-to" onchange="ctRender()" title="To"/>
       <select id="ct-ftype" onchange="ctRender()"><option value="">All Types</option><option value="IN">Cash IN</option><option value="OUT">Cash OUT</option></select>
@@ -3809,6 +3829,7 @@ function renderSupplierLedger(){
 }
 
 function renderCustomerLedger(){
+  clInitFmt();
   const party=document.getElementById('cl-party')?.value||'';
   const sumEl=document.getElementById('cl-summary');
   const tblEl=document.getElementById('cl-table');
@@ -3821,7 +3842,7 @@ function renderCustomerLedger(){
   }
   const rows=getLedgerRows(party,'CUSTOMER');
   if(sumEl){sumEl.style.display='block';sumEl.innerHTML=buildSummaryBar(rows,'CUSTOMER',party);}
-  if(tblEl)tblEl.innerHTML=buildLedgerTable(rows,'CUSTOMER');
+  if(tblEl)tblEl.innerHTML=clFmt()==='SIMPLE'?buildCustomerSimpleTable(party):buildLedgerTable(rows,'CUSTOMER');
   buildLedgerFooter(ftrEl);
 }
 
@@ -3968,6 +3989,7 @@ function printLedger(type){
   if(!party){toast('Select a party first','err');return;}
   const rows=getLedgerRows(party,type);
   if(!rows.length){toast('No entries to print','err');return;}
+  if(type==='CUSTOMER'&&clFmt()==='SIMPLE'){clPrintSimple(party);return;}
   const totalDebit=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0);
   const totalCredit=rows.reduce((s,r)=>s+(parseFloat(r.credit)||0),0);
   const balance=totalDebit-totalCredit;
@@ -4048,6 +4070,7 @@ function exportLedgerExcel(type){
   if(!party){toast('Select a party first','err');return;}
   const rows=getLedgerRows(party,type);
   if(!rows.length){toast('No entries to export','err');return;}
+  if(type==='CUSTOMER'&&clFmt()==='SIMPLE'){clExportSimple(party);return;}
   const totalDebit=rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0);
   const totalCredit=rows.reduce((s,r)=>s+(parseFloat(r.credit)||0),0);
   const balance=totalDebit-totalCredit;
@@ -4455,14 +4478,18 @@ create table if not exists public.cash_allocations (
   amount numeric(12,2),
   created_at timestamptz default now()
 );
+alter table public.cash_transactions add column if not exists book text default 'GENERAL';
+alter table public.cash_transactions add column if not exists upi_holder text;
 alter table public.cash_transactions enable row level security;
 alter table public.cash_allocations enable row level security;
 drop policy if exists "cash_txn_all" on public.cash_transactions;
 create policy "cash_txn_all" on public.cash_transactions for all to anon using (true) with check (true);
 drop policy if exists "cash_alloc_all" on public.cash_allocations;
 create policy "cash_alloc_all" on public.cash_allocations for all to anon using (true) with check (true);`;
-let ctPendBal=0,ctCBRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
+let ctColsOK=true,ctPendBal=0,ctCBRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
 const ctEl=id=>document.getElementById(id);
+const ctBookOf=r=>r&&r.book==='PETTY'?'PETTY':'GENERAL';
+const CT_BOOKNAME={GENERAL:'General Cash',PETTY:'Petty Cash'};
 const ctEsc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ctFmt=n=>'₹'+(+n||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});
 const ctDMY=d=>{const p=String(d||'').split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:d;};
@@ -4578,6 +4605,8 @@ async function ctLoad(){
   let missing=false;
   try{ctRows=await apiAll('cash_transactions?select=*&order=txn_date.asc,id.asc');}
   catch(e){ctRows=[];if(ctMissing(e))missing=true;else toast('Could not load cash book: '+String(e.message||e).slice(0,100),'err');}
+  ctColsOK=true;
+  if(!missing){try{await apiAll('cash_transactions?select=book,upi_holder&limit=1');}catch(e){ctColsOK=false;missing=true;}}
   try{ctAllocs=await apiAll('cash_allocations?select=*&order=id.asc');ctAllocOK=true;}
   catch(e){ctAllocs=[];ctAllocOK=false;if(ctMissing(e))missing=true;}
   try{await loadLedgerEntries();}catch(e){}
@@ -4600,12 +4629,26 @@ function ctQuick(k,silent){
   else{f.value='';to.value='';}
   if(!silent)ctRender();
 }
+function ctScope(book){
+  const all=ctEl('ct-allloc').checked;
+  return ctRows.filter(r=>ctBookOf(r)===book&&(all||locKey(r.location)===locKey(currentLoc)));
+}
+function ctTotals(book){
+  const from=ctEl('ct-from').value,to=ctEl('ct-to').value;
+  let o=0,i=0,u=0;
+  ctScope(book).forEach(r=>{
+    const a=+r.amount||0,sg=r.txn_type==='IN'?1:-1;
+    if(from&&r.txn_date<from){o+=sg*a;return;}
+    if(to&&r.txn_date>to)return;
+    if(sg>0)i+=a;else u+=a;
+  });
+  return {o,i,u,c:o+i-u};
+}
 function ctFiltered(){
   const from=ctEl('ct-from').value,to=ctEl('ct-to').value;
   const ft=ctEl('ct-ftype').value,fc=ctEl('ct-fcat').value;
   const q=ctEl('ct-search').value.trim().toLowerCase();
-  const all=ctEl('ct-allloc').checked;
-  const scope=ctRows.filter(r=>all||locKey(r.location)===locKey(currentLoc));
+  const scope=ctScope(ctEl('ct-bookview').value);
   let opening=0;
   if(from)scope.filter(r=>r.txn_date<from).forEach(r=>{opening+=(r.txn_type==='IN'?1:-1)*(+r.amount||0);});
   const list=scope.filter(r=>{
@@ -4613,11 +4656,13 @@ function ctFiltered(){
     if(to&&r.txn_date>to)return false;
     if(ft&&r.txn_type!==ft)return false;
     if(fc&&r.category!==fc)return false;
-    if(q&&!((r.party||'')+' '+(r.description||'')+' '+(r.voucher_no||'')).toLowerCase().includes(q))return false;
+    if(q&&!((r.party||'')+' '+(r.description||'')+' '+(r.voucher_no||'')+' '+(r.upi_holder||'')).toLowerCase().includes(q))return false;
     return true;
   });
   return {list,opening};
 }
+function ctModeChanged(){ctEl('ct-upi-wrap').style.display=ctEl('ct-mode').value==='UPI'?'block':'none';}
+function ctBookViewChanged(){if(!ctEditId)ctEl('ct-book').value=ctEl('ct-bookview').value;ctRender();}
 const ctAllocsOf=id=>ctAllocs.filter(a=>a.cash_txn_id===id);
 function ctBillsText(id){return ctAllocsOf(id).map(a=>(a.bill_no||'(no bill no)')+': '+ctR2(a.amount)).join('; ');}
 
@@ -4631,16 +4676,20 @@ function ctRender(){
     const al=ctAllocsOf(r.id);
     const chips=al.length?'<div style="font-size:11px;color:#185FA5;margin-top:3px">🔗 '+al.map(x=>ctEsc(x.bill_no||'(no bill no)')+' '+ctFmt(x.amount)).join(' · ')+'</div>':'';
     const acts=isAdmin?'<button class="btn sm" onclick="ctEdit('+r.id+')">Edit</button> <button class="btn sm dng" onclick="ctDel('+r.id+')">Del</button>':'';
-    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+chips+'</td><td>'+ctEsc(r.mode||'')+'</td>'+
+    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+chips+'</td><td>'+ctEsc(r.mode||'')+(r.mode==='UPI'&&r.upi_holder?'<div style="font-size:11px;color:#185FA5">'+ctEsc(r.upi_holder)+'</div>':'')+'</td>'+
       '<td style="text-align:right;color:#2e7d32;font-weight:600">'+(isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
       '<td style="text-align:right;color:#c62828;font-weight:600">'+(!isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
       '<td style="text-align:right;font-weight:600">'+bal.toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="white-space:nowrap">'+acts+'</td></tr>';
   });
   body.innerHTML=rows.length?rows.join(''):'<tr><td colspan="10" class="empty">No cash entries for this selection</td></tr>';
-  ctEl('ct-open').textContent=ctFmt(opening);
-  ctEl('ct-in').textContent=ctFmt(tin);
-  ctEl('ct-out').textContent=ctFmt(tout);
-  const c=ctEl('ct-close');c.textContent=ctFmt(bal);c.className='mv '+(bal<0?'danger':'success');
+  [['GENERAL','g'],['PETTY','p']].forEach(([bk,k])=>{
+    const t=ctTotals(bk);
+    ctEl('ct-'+k+'-open').textContent=ctFmt(t.o);
+    ctEl('ct-'+k+'-in').textContent=ctFmt(t.i);
+    ctEl('ct-'+k+'-out').textContent=ctFmt(t.u);
+    const c=ctEl('ct-'+k+'-close');c.textContent=ctFmt(t.c);c.className='mv '+(t.c<0?'danger':'success');
+  });
+  ctEl('ct-book-title').innerHTML='Cash Book — <span style="color:#185FA5">'+ctEsc(CT_BOOKNAME[ctEl('ct-bookview').value])+'</span> <span style="font-size:11px;font-weight:400;color:#888">(running balance of this book only)</span>';
   if(ctEl('ct-partysum').style.display!=='none')ctRenderPartySum(list);
 }
 
@@ -4801,8 +4850,8 @@ function ctLinkSummary(){
 }
 
 /* ---------- Voucher / reset / save ---------- */
-function ctVoucher(d){
-  const p='CV-'+d.replace(/-/g,'').slice(2)+'-';
+function ctVoucher(d,book){
+  const p=(book==='PETTY'?'PC-':'CV-')+d.replace(/-/g,'').slice(2)+'-';
   let mx=0;ctRows.forEach(r=>{if((r.voucher_no||'').startsWith(p)){const n=parseInt(r.voucher_no.slice(p.length))||0;if(n>mx)mx=n;}});
   return p+String(mx+1).padStart(3,'0');
 }
@@ -4812,7 +4861,7 @@ function ctReset(){
   ctEl('ct-type').value='OUT';
   ctEl('ct-cat').selectedIndex=0;
   ['ct-party','ct-amt','ct-desc'].forEach(i=>ctEl(i).value='');
-  ctEl('ct-mode').value='Cash';
+  ctEl('ct-mode').value='Cash';ctEl('ct-upi').value='';ctEl('ct-book').value=ctEl('ct-bookview').value;ctModeChanged();
   ctEl('ct-link').checked=false;ctEl('ct-link-wrap').style.display='block';ctEl('ct-src').value='LEDGER';
   ctLinkRefresh();
   ctEl('ct-save-btn').textContent='Save Entry';
@@ -4822,6 +4871,8 @@ async function ctSave(){
   const type=ctEl('ct-type').value,op=ctEl('ct-op').value.trim(),party=ctEl('ct-party').value.trim();
   if(!date){toast('Select a date','err');return;}
   if(!(amt>0)){toast('Enter a valid amount','err');return;}
+  const book=ctEl('ct-book').value,mode=ctEl('ct-mode').value,upi=ctEl('ct-upi').value.trim();
+  if(mode==='UPI'&&!upi){toast('Enter the UPI holder name','err');return;}
   if(op)localStorage.setItem('sge_operator',op);
   const linking=ctEl('ct-link').checked&&!ctEditId;
   const lt=ctLedgerType(),src=ctEl('ct-src').value;
@@ -4837,13 +4888,14 @@ async function ctSave(){
     if(remain>0.005&&!confirm(allocs.length?'₹'+remain+' is not given to any bill.\n\nKeep it as an advance (On Account) for this party?':'No bill selected.\n\nKeep the full ₹'+amt+' as an advance (On Account) for this party?'))return;
   }
   const rec={txn_date:date,txn_type:type,category:ctEl('ct-cat').value,party:linking?pname:party,description:ctEl('ct-desc').value.trim(),
-    amount:amt,mode:ctEl('ct-mode').value,operator:op};
+    amount:amt,mode,operator:op,book,upi_holder:mode==='UPI'?upi:''};
+  if(!ctColsOK){delete rec.book;delete rec.upi_holder;toast('Run the updated setup SQL to save Petty Cash / UPI holder','err');}
   try{
     if(ctEditId){
       await api('PATCH','cash_transactions?id=eq.'+ctEditId,rec);
       toast('Entry updated','ok');
     }else{
-      rec.voucher_no=ctVoucher(date);rec.location=locKey(currentLoc);
+      rec.voucher_no=ctVoucher(date,book);rec.location=locKey(currentLoc);
       const cash=(await api('POST','cash_transactions',rec))[0];
       if(linking&&src==='CB'){
         const arows=allocs.map(x=>({cash_txn_id:cash.id,voucher_no:cash.voucher_no,party:pname,ledger_type:'CASHBILL',ledger_entry_id:'',bill_no:x.b.billNo,amount:x.amt}));
@@ -4867,6 +4919,7 @@ async function ctSave(){
         toast('Saved '+cash.voucher_no+' — split into '+lrows.length+' ledger line(s)','ok');
       }else toast('Saved '+rec.voucher_no,'ok');
     }
+    ctEl('ct-bookview').value=book;
     ctReset();await ctLoad();
     try{populateLedgerDropdowns();renderCustomerLedger();renderSupplierLedger();}catch(_){}
     if(linking){const nb=ctPending(pname,lt).balance;toast('Saved · '+pname+' remaining balance: '+ctFmt(nb)+(nb<0?' (advance)':''),'ok');}
@@ -4885,7 +4938,7 @@ function ctEdit(id){
   ctEl('ct-cat').value=r.category||CT_CATS[0];
   ctEl('ct-party').value=r.party||'';
   ctEl('ct-amt').value=r.amount;
-  ctEl('ct-mode').value=r.mode||'Cash';
+  ctEl('ct-mode').value=r.mode||'Cash';ctEl('ct-book').value=ctBookOf(r);ctEl('ct-upi').value=r.upi_holder||'';ctModeChanged();
   ctEl('ct-desc').value=r.description||'';
   ctEl('ct-op').value=r.operator||'';
   ctEl('ct-link').checked=false;ctEl('ct-link-wrap').style.display='none';ctLinkRefresh();
@@ -4908,29 +4961,122 @@ async function ctDel(id){
 
 /* ---------- Export / print ---------- */
 function ctExport(){
-  const {list,opening}=ctFiltered();
+  const {list,opening}=ctFiltered(),bk=ctEl('ct-bookview').value;
   let bal=opening;
-  const data=[['Date','Voucher','Location','Type','Category','Party','Description','Linked Bills','Mode','Cash IN','Cash OUT','Balance','Entered By']];
-  data.push(['','','','','','Opening Balance','','','','','',opening,'']);
+  const data=[['Cash Book: '+CT_BOOKNAME[bk]],['Date','Voucher','Location','Type','Category','Party','Description','Linked Bills','Mode','UPI Holder','Cash IN','Cash OUT','Balance','Entered By']];
+  data.push(['','','','','','Opening Balance','','','','','','',opening,'']);
   list.forEach(r=>{const a=+r.amount||0;bal+=r.txn_type==='IN'?a:-a;
-    data.push([r.txn_date,r.voucher_no||'',r.location||'',r.txn_type,r.category||'',r.party||'',r.description||'',ctBillsText(r.id),r.mode||'',r.txn_type==='IN'?a:'',r.txn_type==='OUT'?a:'',bal,r.operator||'']);});
+    data.push([r.txn_date,r.voucher_no||'',r.location||'',r.txn_type,r.category||'',r.party||'',r.description||'',ctBillsText(r.id),r.mode||'',r.upi_holder||'',r.txn_type==='IN'?a:'',r.txn_type==='OUT'?a:'',bal,r.operator||'']);});
   const ws=XLSX.utils.aoa_to_sheet(data),wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Cash Book');
-  XLSX.writeFile(wb,'Cash_Book_'+today()+'.xlsx');
+  XLSX.utils.book_append_sheet(wb,ws,CT_BOOKNAME[bk]);
+  XLSX.writeFile(wb,(bk==='PETTY'?'Petty_Cash_Book_':'General_Cash_Book_')+today()+'.xlsx');
 }
 function ctPrint(){
-  const {list,opening}=ctFiltered();
+  const {list,opening}=ctFiltered(),bk=ctEl('ct-bookview').value;
   let bal=opening,tin=0,tout=0;
   const rows=list.map(r=>{const a=+r.amount||0,i=r.txn_type==='IN';if(i){tin+=a;bal+=a;}else{tout+=a;bal-=a;}
     const bt=ctBillsText(r.id);
-    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+(bt?'<br><small>Bills: '+ctEsc(bt)+'</small>':'')+'</td><td class="n">'+(i?a.toFixed(2):'')+'</td><td class="n">'+(!i?a.toFixed(2):'')+'</td><td class="n">'+bal.toFixed(2)+'</td></tr>';}).join('');
+    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+(bt?'<br><small>Bills: '+ctEsc(bt)+'</small>':'')+'</td><td>'+ctEsc(r.mode||'')+(r.mode==='UPI'&&r.upi_holder?'<br><small>'+ctEsc(r.upi_holder)+'</small>':'')+'</td><td class="n">'+(i?a.toFixed(2):'')+'</td><td class="n">'+(!i?a.toFixed(2):'')+'</td><td class="n">'+bal.toFixed(2)+'</td></tr>';}).join('');
   const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print','err');return;}
   w.document.write('<html><head><title>Cash Book</title><style>body{font-family:system-ui,sans-serif;font-size:12px;padding:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5px 7px;text-align:left}th{background:#eee}.n{text-align:right}h2{margin:0 0 4px}</style></head><body>'+
-    '<h2>SGE-SSE — Cash Book ('+ctEsc(ctEl('ct-allloc').checked?'All Locations':currentLoc)+')</h2>'+
+    '<h2>SGE-SSE — '+ctEsc(CT_BOOKNAME[bk])+' Book ('+ctEsc(ctEl('ct-allloc').checked?'All Locations':currentLoc)+')</h2>'+
     '<div style="margin-bottom:8px">Period: '+ctEsc(ctEl('ct-from').value||'Start')+' to '+ctEsc(ctEl('ct-to').value||'Today')+' &nbsp;|&nbsp; Opening: ₹'+opening.toFixed(2)+' &nbsp;|&nbsp; IN: ₹'+tin.toFixed(2)+' &nbsp;|&nbsp; OUT: ₹'+tout.toFixed(2)+' &nbsp;|&nbsp; <b>Closing: ₹'+bal.toFixed(2)+'</b></div>'+
-    '<table><thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description</th><th>IN</th><th>OUT</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
+    '<table><thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description</th><th>Mode</th><th>IN</th><th>OUT</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
   w.document.close();w.focus();setTimeout(()=>w.print(),300);
 }
+
+/* ===== CUSTOMER STATEMENT (simple version, like the Excel statement shared with customers) ===== */
+let _clFmtInit=false;
+function clFmt(){const el=document.getElementById('cl-format');return el?el.value:'DETAIL';}
+function clInitFmt(){
+  if(_clFmtInit)return;_clFmtInit=true;
+  const el=document.getElementById('cl-format');
+  try{const v=localStorage.getItem('sge_cl_fmt');if(el&&(v==='SIMPLE'||v==='DETAIL'))el.value=v;}catch(e){}
+}
+function clFmtChanged(){try{localStorage.setItem('sge_cl_fmt',clFmt());}catch(e){}renderCustomerLedger();}
+const clDMY=d=>{const p=String(d||'').split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:(d||'');};
+function clSimple(party){
+  const rows=getLedgerRows(party,'CUSTOMER');
+  const pend={};
+  if(typeof ctPending==='function'){try{ctPending(party,'CUSTOMER').bills.forEach(b=>{pend[b.key]=b.pending;});}catch(e){}}
+  const t=new Date(today()+'T00:00:00');
+  const out=[],grp={};
+  rows.forEach(r=>{
+    const d=parseFloat(r.debit)||0,c=parseFloat(r.credit)||0;
+    if(d>0){
+      const bn=String(r.bill_no||'').trim(),key=bn?'B:'+bn.toUpperCase():'I:'+r.id;
+      const due=r.due_date||r.date;
+      let od='';
+      if((pend[key]||0)>0.005&&due){od=Math.max(0,Math.round((t-new Date(due+'T00:00:00'))/86400000));}
+      out.push({date:r.date,part:bn||String(r.remarks||'BILL').toUpperCase(),debit:d,credit:c,due:due,od:od});
+      return;
+    }
+    if(c>0){
+      const m=String(r.remarks||'').match(/Cash\s+((?:CV|PC)-\d{6}-\d{3})/);
+      if(m){   // one cash receipt split over several bills -> show as ONE receipt line
+        if(grp[m[1]]){grp[m[1]].credit+=c;return;}
+        const o={date:r.date,part:'RECEIPT',debit:0,credit:c,due:'',od:''};grp[m[1]]=o;out.push(o);return;
+      }
+      const rm=String(r.remarks||'').trim();
+      out.push({date:r.date,part:/return|credit note|discount|adjust|rate diff/i.test(rm)?rm.toUpperCase():'RECEIPT',debit:0,credit:c,due:'',od:''});
+    }
+  });
+  let bal=0,td=0,tc=0;
+  out.forEach(o=>{td+=o.debit;tc+=o.credit;bal+=o.debit-o.credit;o.bal=bal;});
+  return {lines:out,td,tc,bal};
+}
+function buildCustomerSimpleTable(party){
+  const x=clSimple(party);
+  if(!x.lines.length)return '<div class="empty">No entries found for this party.</div>';
+  const th='padding:9px 10px;background:#1a1a1a;color:#fff;font-size:12px;letter-spacing:.4px';
+  let h='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th style="'+th+';text-align:left">DATE</th><th style="'+th+';text-align:left">BILL NO / PARTICULARS</th><th style="'+th+';text-align:right">DEBIT</th><th style="'+th+';text-align:right">CREDIT</th><th style="'+th+';text-align:right">BALANCE</th><th style="'+th+';text-align:center">DUE ON</th><th style="'+th+';text-align:center">OVERDUE BY DAYS</th></tr></thead><tbody>';
+  x.lines.forEach(o=>{
+    h+='<tr style="border-bottom:1px solid #eee'+(o.credit>0&&!o.debit?';background:#f6fbf6':'')+'"><td style="padding:7px 10px;white-space:nowrap">'+ctEsc(clDMY(o.date))+'</td><td style="padding:7px 10px;font-weight:600">'+ctEsc(o.part)+'</td>'+
+      '<td style="padding:7px 10px;text-align:right">'+(o.debit?fmt(o.debit):'')+'</td><td style="padding:7px 10px;text-align:right;color:#2e7d32">'+(o.credit?fmt(o.credit):'')+'</td>'+
+      '<td style="padding:7px 10px;text-align:right;font-weight:700">'+fmt(Math.abs(o.bal))+(o.bal<0?' Adv':'')+'</td>'+
+      '<td style="padding:7px 10px;text-align:center">'+(o.due?ctEsc(clDMY(o.due)):'')+'</td>'+
+      '<td style="padding:7px 10px;text-align:center;font-weight:700;color:'+(o.od>0?'#c62828':'#999')+'">'+(o.od===''?'':o.od)+'</td></tr>';
+  });
+  h+='<tr style="font-weight:700;border-top:2px solid #1a1a1a;background:#f5f5f5"><td></td><td style="padding:9px 10px">TOTAL</td><td style="padding:9px 10px;text-align:right">'+fmt(x.td)+'</td><td style="padding:9px 10px;text-align:right">'+fmt(x.tc)+'</td><td colspan="3"></td></tr>';
+  h+='<tr style="font-weight:800;font-size:15px"><td></td><td></td><td style="padding:10px;text-align:right">BALANCE</td><td></td><td style="padding:10px;text-align:right;color:'+(x.bal>0?'#c62828':'#2e7d32')+'">₹'+fmt(Math.abs(x.bal))+(x.bal<0?' Adv':'')+'</td><td colspan="2"></td></tr></tbody></table>';
+  return h;
+}
+function clPrintSimple(party){
+  const x=clSimple(party);
+  const rowsHtml=x.lines.map(o=>'<tr><td>'+ctEsc(clDMY(o.date))+'</td><td><b>'+ctEsc(o.part)+'</b></td><td style="text-align:right">'+(o.debit?fmt(o.debit):'')+'</td><td style="text-align:right">'+(o.credit?fmt(o.credit):'')+'</td><td style="text-align:right;font-weight:700">'+fmt(Math.abs(o.bal))+(o.bal<0?' Adv':'')+'</td><td style="text-align:center">'+(o.due?ctEsc(clDMY(o.due)):'')+'</td><td style="text-align:center">'+(o.od===''?'':o.od)+'</td></tr>').join('');
+  const html='<div style="text-align:center;margin-bottom:8px"><div style="font-size:16px;font-weight:700">SAI GANESH ELECTRICALS - SSE</div><div style="font-size:11px">Plot No/19/P, Shop No/9, Ground Floor, Raghavendra Colony, Suchitra, Hyderabad - 500067</div><div style="font-size:11px">GSTIN: 36ALWPD5924D1ZZ | Email: krishnadsge@gmail.com</div></div>'+
+    '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px"><div><strong>Statement of Account:</strong> '+ctEsc(party)+'</div><div><strong>Date:</strong> '+ctEsc(clDMY(today()))+'</div></div>'+
+    '<table class="lp-table"><thead><tr><th>DATE</th><th>BILL NO / PARTICULARS</th><th>DEBIT</th><th>CREDIT</th><th>BALANCE</th><th>DUE ON</th><th>OVERDUE BY DAYS</th></tr></thead><tbody>'+rowsHtml+'</tbody>'+
+    '<tfoot><tr style="font-weight:700;background:#f5f5f5"><td></td><td>TOTAL</td><td style="text-align:right">'+fmt(x.td)+'</td><td style="text-align:right">'+fmt(x.tc)+'</td><td colspan="3"></td></tr>'+
+    '<tr style="font-weight:800"><td></td><td></td><td style="text-align:right">BALANCE</td><td></td><td style="text-align:right">₹'+fmt(Math.abs(x.bal))+(x.bal<0?' Adv':'')+'</td><td colspan="2"></td></tr></tfoot></table>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:16px;font-size:10px;border-top:1px solid #ccc;padding-top:8px"><div><strong>REGARDS,</strong><br>SAI GANESH ELECTRICALS - SSE<br>Plot No/19/P, Shop No/9, Ground Floor<br>Raghavendra Colony, Suchitra, Medchal-Malkajgiri Dist - 500067<br>GSTIN: 36ALWPD5924D1ZZ</div>'+
+    '<div style="text-align:right"><strong>COMPANY BANK DETAILS</strong><br>SAI GANESH ELECTRICALS - SSE<br>A/C No. 50200029005060<br>IFSC CODE: HDFC0000696 | BANK: HDFC<br>E-MAIL: krishnadsge@gmail.com</div></div>';
+  document.getElementById('ledger-print-content').innerHTML=html;
+  document.body.classList.add('printing-ledger');
+  window.print();
+  setTimeout(()=>{document.body.classList.remove('printing-ledger');},1000);
+}
+function clExportSimple(party){
+  const x=clSimple(party);
+  const data=[['SAI GANESH ELECTRICALS-SSE'],['# PLOT NO/19/P, SHOP NO/9, GROUND FLOOR, RAGHAVENDRA COLONY, SUCHITRA, HYDERABAD'],['DATE','','','','',clDMY(today())],[party],
+    ['DATE','BILL NO / PARTICULARS','DEBIT','CREDIT','BALANCE','DUE ON','OVERDUE BY DAYS']];
+  x.lines.forEach(o=>data.push([clDMY(o.date),o.part,o.debit||'',o.credit||'',o.bal,o.due?clDMY(o.due):'',o.od]));
+  data.push(['','TOTAL',x.td,x.tc]);
+  data.push(['','','BALANCE','',x.bal]);
+  data.push([]);
+  data.push(['REGARDS,','','','','COMPANY BANK DETAILS']);
+  data.push(['SAI GANESH ELECTRICALS-SSE','','','','SAI GANESH ELECTRICALS - SSE']);
+  data.push(['PLOT NO/19/P, SHOP NO/9, GROUND FLOOR','','','','A/C No. 50200029005060']);
+  data.push(['RAGHAVENDRA COLONY, SUCHITRA','','','','IFSC CODE: HDFC0000696']);
+  data.push(['MEDCHAL-MALKAJGIRI DIST- 500067','','','','BANK: HDFC']);
+  data.push(['GSTIN : 36ALWPD5924D1ZZ','','','','E-MAIL: krishnadsge@gmail.com']);
+  const ws=XLSX.utils.aoa_to_sheet(data),wb=XLSX.utils.book_new();
+  ws['!cols']=[{wch:12},{wch:34},{wch:14},{wch:14},{wch:16},{wch:12},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,ws,'Statement');
+  XLSX.writeFile(wb,'Customer_Statement_'+party.replace(/[^a-z0-9]/gi,'_')+'_'+today()+'.xlsx');
+  toast('Customer statement exported ✓','ok');
+}
+
 // keep Edit/Del buttons & location scope in sync
 (function(){
   const _rA=window.renderAll;
