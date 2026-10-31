@@ -4728,10 +4728,15 @@ function ctRender(){
     const c=ctEl('ct-'+k+'-close');c.textContent=ctFmt(t.c);c.className='mv '+(t.c<0?'danger':'success');
   });
   ctEl('ct-movebar').style.display=isAdmin?'flex':'none';
-  const unset=ctRows.filter(r=>!r.book).length,cw=ctEl('ct-colwarn');
-  if(!ctColsOK){cw.style.display='block';cw.innerHTML='⚠ Petty Cash cannot be saved yet — run the <b>setup SQL</b> shown at the top of this page (adds the “book” column), then press Retry.';}
-  else if(unset>0){cw.style.display='block';cw.innerHTML='ℹ <b>'+unset+'</b> older entr'+(unset===1?'y has':'ies have')+' no cash book set, so they are counted in <b>General Cash</b>. '+(isAdmin?'Tick them in the table below and use <b>Move selected to Petty Cash</b>.':'Log in as admin to move them to Petty Cash.');}
-  else cw.style.display='none';
+  const cw=ctEl('ct-colwarn'),msgs=[];
+  const looksPetty=r=>/petty/i.test(r.category||'')||(r.txn_type==='OUT'&&CT_PETTY_EXP.includes(r.category));
+  const looks=ctRows.filter(r=>ctBookOf(r)==='GENERAL'&&looksPetty(r)).length;
+  const pAll=ctRows.filter(r=>ctBookOf(r)==='PETTY').length,pHere=ctScope('PETTY').length;
+  if(!ctColsOK)msgs.push('⚠ Petty Cash cannot be saved yet — run the <b>setup SQL</b> (top of this page), then press Retry.');
+  if(looks>0)msgs.push('ℹ <b>'+looks+'</b> entr'+(looks===1?'y looks':'ies look')+' like petty cash (Petty top-up / Tea / Transport / Fuel / Loading / Stationery / Repairs) but '+(looks===1?'is':'are')+' still in <b>General Cash</b>. '+(isAdmin?'Use the <b>⚡ Move…</b> buttons above the table.':'Log in as admin and use the ⚡ Move buttons above the table, or run the SQL fix.'));
+  if(pAll>0&&pHere===0)msgs.push('ℹ <b>'+pAll+'</b> Petty Cash entr'+(pAll===1?'y exists':'ies exist')+' in the other location — tick <b>Show both locations</b> to see '+(pAll===1?'it':'them')+'.');
+  if(pAll===0&&looks===0&&ctColsOK)msgs.push('ℹ No entries are in the Petty Cash book yet. Save an entry with <b>Cash Book = Petty Cash</b> (or a Tea / Transport / Fuel expense) and it will appear here.');
+  cw.style.display=msgs.length?'block':'none';cw.innerHTML=msgs.join('<br>');
   ctEl('ct-book-title').innerHTML='Cash Book — <span style="color:#185FA5">'+ctEsc(CT_BOOKNAME[ctEl('ct-bookview').value])+'</span> <span style="font-size:11px;font-weight:400;color:#888">(running balance of this book only)</span>';
   if(ctEl('ct-partysum').style.display!=='none')ctRenderPartySum(list);
 }
