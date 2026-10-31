@@ -172,6 +172,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('pending',this)" id="pendingNavBtn" style="display:none">💳 Pending</button>
   <button onclick="go('stockvalue',this)">💰 Stock Value</button>
   <button onclick="go('dmgrtn',this)">🔧 DMG/RTN</button>
+  <button onclick="go('cashtxn',this)">💵 Cash Transactions</button>
   <button onclick="go('dupmerge',this)">🧹 Merge Duplicates</button>
   <button onclick="go('bills',this)" id="billsTab" style="display:none">🔔 Bills Due</button>
 </nav>
@@ -1125,6 +1126,71 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <button class="btn" onclick="closeLedgerModal()">Cancel</button>
       <button class="btn primary" onclick="saveLedgerEntry()">💾 Save Entry</button>
     </div>
+  </div>
+</div>
+
+<!-- CASH TRANSACTION DETAILS (Petty Cash) -->
+<div id="page-cashtxn" class="page">
+  <div id="ct-setup" class="card" style="display:none;border-color:#e65100;background:#fff8f0">
+    <div class="card-title" style="color:#e65100">⚙ One-time setup needed</div>
+    <div style="font-size:13px;margin-bottom:8px">The <b>cash_transactions</b> table was not found in Supabase. Open <b>Supabase → SQL Editor</b>, paste this, click <b>Run</b>, then reload:</div>
+    <pre id="ct-sql" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:8px;font-size:12px;overflow:auto;white-space:pre-wrap"></pre>
+    <div class="ar"><button class="btn sm" onclick="ctCopySql()">Copy SQL</button><button class="btn sm primary" onclick="ctLoad()">Retry</button></div>
+  </div>
+
+  <div class="grid4">
+    <div class="metric"><div class="ml">Opening Balance</div><div class="mv info" id="ct-open">₹0</div></div>
+    <div class="metric"><div class="ml">Cash IN</div><div class="mv success" id="ct-in">₹0</div></div>
+    <div class="metric"><div class="ml">Cash OUT</div><div class="mv danger" id="ct-out">₹0</div></div>
+    <div class="metric"><div class="ml">Closing Balance</div><div class="mv" id="ct-close">₹0</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" id="ct-form-title">💵 Cash Transaction Details <span style="font-size:11px;font-weight:400;color:#888">(Petty Cash / Cash Book)</span></div>
+    <div class="frow c3">
+      <div class="fg"><label>Date</label><input type="date" id="ct-date"/></div>
+      <div class="fg"><label>Type</label>
+        <select id="ct-type"><option value="OUT">Cash OUT (Expense / Payment)</option><option value="IN">Cash IN (Receipt / Top-up)</option></select></div>
+      <div class="fg"><label>Category</label><select id="ct-cat"></select></div>
+    </div>
+    <div class="frow c3">
+      <div class="fg"><label>Paid To / Received From</label><input id="ct-party" placeholder="Name"/></div>
+      <div class="fg"><label>Amount (₹)</label><input type="number" id="ct-amt" min="0" step="0.01" placeholder="0.00"/></div>
+      <div class="fg"><label>Mode</label>
+        <select id="ct-mode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Cheque</option></select></div>
+    </div>
+    <div class="frow c2">
+      <div class="fg"><label>Description / Purpose</label><input id="ct-desc" placeholder="e.g. Auto fare for material delivery"/></div>
+      <div class="fg"><label>Entered By</label><input id="ct-op" placeholder="Operator name"/></div>
+    </div>
+    <div class="ar">
+      <button class="btn" onclick="ctReset()">Clear</button>
+      <button class="btn primary" id="ct-save-btn" onclick="ctSave()">Save Entry</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Cash Book</div>
+    <div class="sbar">
+      <input type="date" id="ct-from" onchange="ctRender()" title="From"/>
+      <input type="date" id="ct-to" onchange="ctRender()" title="To"/>
+      <select id="ct-ftype" onchange="ctRender()"><option value="">All Types</option><option value="IN">Cash IN</option><option value="OUT">Cash OUT</option></select>
+      <select id="ct-fcat" onchange="ctRender()"></select>
+      <input id="ct-search" placeholder="Search party / description / voucher…" oninput="ctRender()"/>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px;flex-wrap:wrap;font-size:12px">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="ct-allloc" onchange="ctRender()" style="width:auto"/> Show both locations</label>
+      <span style="flex:1"></span>
+      <button class="btn sm" onclick="ctQuick('today')">Today</button>
+      <button class="btn sm" onclick="ctQuick('month')">This Month</button>
+      <button class="btn sm" onclick="ctQuick('all')">All</button>
+      <button class="btn sm" onclick="ctExport()">⬇ Excel</button>
+      <button class="btn sm" onclick="ctPrint()">🖨 Print</button>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description</th><th>Mode</th><th style="text-align:right">IN (₹)</th><th style="text-align:right">OUT (₹)</th><th style="text-align:right">Balance (₹)</th><th></th></tr></thead>
+      <tbody id="ct-body"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
+    </table></div>
   </div>
 </div>
 
@@ -2571,7 +2637,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}if(name==='supplierledger'){populateLedgerDropdowns();renderSupplierLedger();}if(name==='customerledger'){populateLedgerDropdowns();renderCustomerLedger();}if(name==='dupmerge'){scanDupGroups();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}if(name==='supplierledger'){populateLedgerDropdowns();renderSupplierLedger();}if(name==='customerledger'){populateLedgerDropdowns();renderCustomerLedger();}if(name==='dupmerge'){scanDupGroups();}if(name==='cashtxn'){ctInit();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
@@ -4332,6 +4398,195 @@ window.addEventListener("load",()=>{
   indRefresh(); setInterval(()=>{ if(!document.hidden) indRefresh(); },60000);
 });
 
+</script>
+<script>
+/* ===== CASH TRANSACTION DETAILS (Petty Cash / Cash Book) — Supabase table "cash_transactions" ===== */
+const CT_CATS=['Petty Cash Top-up','Transport / Auto','Loading / Unloading','Tea / Food','Fuel','Staff Advance','Salary','Repairs & Maintenance','Stationery / Office','Purchase (Cash)','Sales Receipt (Cash)','Bank Deposit / Withdrawal','Other'];
+const CT_SQL=`create table if not exists public.cash_transactions (
+  id bigint generated by default as identity primary key,
+  voucher_no text,
+  txn_date date not null default current_date,
+  location text default 'GODOWN',
+  txn_type text not null check (txn_type in ('IN','OUT')),
+  category text,
+  party text,
+  description text,
+  amount numeric(12,2) not null,
+  mode text default 'Cash',
+  operator text,
+  created_at timestamptz default now()
+);
+alter table public.cash_transactions enable row level security;
+create policy "cash_txn_all" on public.cash_transactions
+  for all to anon using (true) with check (true);`;
+let ctRows=[], ctEditId=null, ctReady=false;
+const ctEsc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ctFmt=n=>'₹'+(+n||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});
+const ctDMY=d=>{const p=String(d||'').split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:d;};
+
+function ctInit(){
+  if(!ctReady){
+    ctReady=true;
+    document.getElementById('ct-sql').textContent=CT_SQL;
+    document.getElementById('ct-cat').innerHTML=CT_CATS.map(c=>'<option>'+ctEsc(c)+'</option>').join('');
+    document.getElementById('ct-fcat').innerHTML='<option value="">All Categories</option>'+CT_CATS.map(c=>'<option>'+ctEsc(c)+'</option>').join('');
+    document.getElementById('ct-date').value=today();
+    document.getElementById('ct-op').value=localStorage.getItem('sge_operator')||'';
+    ctQuick('month',true);
+  }
+  ctLoad();
+}
+function ctCopySql(){navigator.clipboard.writeText(CT_SQL).then(()=>toast('SQL copied','ok'),()=>toast('Copy failed — select the text manually','err'));}
+async function ctLoad(){
+  try{
+    ctRows=await apiAll('cash_transactions?select=*&order=txn_date.asc,id.asc');
+    document.getElementById('ct-setup').style.display='none';
+  }catch(e){
+    ctRows=[];
+    if(/cash_transactions|PGRST205|42P01|relation/i.test(String(e.message||e))) document.getElementById('ct-setup').style.display='block';
+    else toast('Could not load cash book: '+String(e.message||e).slice(0,100),'err');
+  }
+  ctRender();
+}
+function ctQuick(k,silent){
+  const t=today(),f=document.getElementById('ct-from'),to=document.getElementById('ct-to');
+  if(k==='today'){f.value=t;to.value=t;}
+  else if(k==='month'){f.value=t.slice(0,8)+'01';to.value=t;}
+  else{f.value='';to.value='';}
+  if(!silent)ctRender();
+}
+function ctFiltered(){
+  const from=document.getElementById('ct-from').value,to=document.getElementById('ct-to').value;
+  const ft=document.getElementById('ct-ftype').value,fc=document.getElementById('ct-fcat').value;
+  const q=document.getElementById('ct-search').value.trim().toLowerCase();
+  const all=document.getElementById('ct-allloc').checked;
+  const scope=ctRows.filter(r=>all||locKey(r.location)===locKey(currentLoc));
+  // opening balance = everything in scope before the From date
+  let opening=0;
+  if(from) scope.filter(r=>r.txn_date<from).forEach(r=>{opening+=(r.txn_type==='IN'?1:-1)*(+r.amount||0);});
+  const list=scope.filter(r=>{
+    if(from&&r.txn_date<from)return false;
+    if(to&&r.txn_date>to)return false;
+    if(ft&&r.txn_type!==ft)return false;
+    if(fc&&r.category!==fc)return false;
+    if(q&&!((r.party||'')+' '+(r.description||'')+' '+(r.voucher_no||'')).toLowerCase().includes(q))return false;
+    return true;
+  });
+  return {list,opening};
+}
+function ctRender(){
+  const body=document.getElementById('ct-body'); if(!body)return;
+  const {list,opening}=ctFiltered();
+  const filtered=!!(document.getElementById('ct-ftype').value||document.getElementById('ct-fcat').value||document.getElementById('ct-search').value.trim());
+  let bal=opening,tin=0,tout=0;
+  const rows=list.map(r=>{
+    const a=+r.amount||0,isIn=r.txn_type==='IN';
+    if(isIn){tin+=a;bal+=a;}else{tout+=a;bal-=a;}
+    const acts=isAdmin?'<button class="btn sm" onclick="ctEdit('+r.id+')">Edit</button> <button class="btn sm dng" onclick="ctDel('+r.id+')">Del</button>':'';
+    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+'</td><td>'+ctEsc(r.mode||'')+'</td>'+
+      '<td style="text-align:right;color:#2e7d32;font-weight:600">'+(isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
+      '<td style="text-align:right;color:#c62828;font-weight:600">'+(!isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
+      '<td style="text-align:right;font-weight:600">'+bal.toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="white-space:nowrap">'+acts+'</td></tr>';
+  });
+  body.innerHTML=rows.length?rows.join(''):'<tr><td colspan="10" class="empty">No cash entries for this selection</td></tr>';
+  document.getElementById('ct-open').textContent=ctFmt(opening);
+  document.getElementById('ct-in').textContent=ctFmt(tin);
+  document.getElementById('ct-out').textContent=ctFmt(tout);
+  const c=document.getElementById('ct-close');c.textContent=ctFmt(bal);c.className='mv '+(bal<0?'danger':'success');
+  if(filtered) document.getElementById('ct-open').title='Filters active: balance column reflects filtered entries only';
+}
+function ctVoucher(d){
+  const p='CV-'+d.replace(/-/g,'').slice(2)+'-';
+  let mx=0;ctRows.forEach(r=>{if((r.voucher_no||'').startsWith(p)){const n=parseInt(r.voucher_no.slice(p.length))||0;if(n>mx)mx=n;}});
+  return p+String(mx+1).padStart(3,'0');
+}
+function ctReset(){
+  ctEditId=null;
+  document.getElementById('ct-date').value=today();
+  document.getElementById('ct-type').value='OUT';
+  document.getElementById('ct-cat').selectedIndex=0;
+  ['ct-party','ct-amt','ct-desc'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('ct-mode').value='Cash';
+  document.getElementById('ct-save-btn').textContent='Save Entry';
+}
+async function ctSave(){
+  const date=document.getElementById('ct-date').value;
+  const amt=parseFloat(document.getElementById('ct-amt').value);
+  const type=document.getElementById('ct-type').value;
+  const op=document.getElementById('ct-op').value.trim();
+  if(!date){toast('Select a date','err');return;}
+  if(!(amt>0)){toast('Enter a valid amount','err');return;}
+  if(op)localStorage.setItem('sge_operator',op);
+  const rec={txn_date:date,txn_type:type,category:document.getElementById('ct-cat').value,
+    party:document.getElementById('ct-party').value.trim(),description:document.getElementById('ct-desc').value.trim(),
+    amount:amt,mode:document.getElementById('ct-mode').value,operator:op};
+  try{
+    if(ctEditId){
+      await api('PATCH','cash_transactions?id=eq.'+ctEditId,rec);
+      toast('Entry updated','ok');
+    }else{
+      rec.voucher_no=ctVoucher(date);rec.location=locKey(currentLoc);
+      await api('POST','cash_transactions',rec);
+      toast('Saved '+rec.voucher_no,'ok');
+    }
+    ctReset();await ctLoad();
+  }catch(e){
+    if(/cash_transactions|PGRST205|42P01|relation/i.test(String(e.message||e))) document.getElementById('ct-setup').style.display='block';
+    toast('Save failed: '+String(e.message||e).slice(0,100),'err');
+  }
+}
+function ctEdit(id){
+  if(!isAdmin)return;
+  const r=ctRows.find(x=>x.id===id);if(!r)return;
+  ctEditId=id;
+  document.getElementById('ct-date').value=r.txn_date;
+  document.getElementById('ct-type').value=r.txn_type;
+  document.getElementById('ct-cat').value=r.category||CT_CATS[0];
+  document.getElementById('ct-party').value=r.party||'';
+  document.getElementById('ct-amt').value=r.amount;
+  document.getElementById('ct-mode').value=r.mode||'Cash';
+  document.getElementById('ct-desc').value=r.description||'';
+  document.getElementById('ct-op').value=r.operator||'';
+  document.getElementById('ct-save-btn').textContent='Update '+(r.voucher_no||'Entry');
+  document.getElementById('ct-form-title').scrollIntoView({behavior:'smooth'});
+}
+async function ctDel(id){
+  if(!isAdmin)return;
+  const r=ctRows.find(x=>x.id===id);
+  if(!confirm('Delete '+(r&&r.voucher_no||'this entry')+'? This cannot be undone.'))return;
+  try{await api('DELETE','cash_transactions?id=eq.'+id);toast('Entry deleted','ok');await ctLoad();}
+  catch(e){toast('Delete failed: '+String(e.message||e).slice(0,100),'err');}
+}
+function ctExport(){
+  const {list,opening}=ctFiltered();
+  let bal=opening;
+  const data=[['Date','Voucher','Location','Type','Category','Party','Description','Mode','Cash IN','Cash OUT','Balance','Entered By']];
+  data.push(['','','','','','Opening Balance','','','','',opening,'']);
+  list.forEach(r=>{const a=+r.amount||0;bal+=r.txn_type==='IN'?a:-a;
+    data.push([r.txn_date,r.voucher_no||'',r.location||'',r.txn_type,r.category||'',r.party||'',r.description||'',r.mode||'',r.txn_type==='IN'?a:'',r.txn_type==='OUT'?a:'',bal,r.operator||'']);});
+  const ws=XLSX.utils.aoa_to_sheet(data),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Cash Book');
+  XLSX.writeFile(wb,'Cash_Book_'+today()+'.xlsx');
+}
+function ctPrint(){
+  const {list,opening}=ctFiltered();
+  let bal=opening,tin=0,tout=0;
+  const rows=list.map(r=>{const a=+r.amount||0,i=r.txn_type==='IN';if(i){tin+=a;bal+=a;}else{tout+=a;bal-=a;}
+    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+'</td><td class="n">'+(i?a.toFixed(2):'')+'</td><td class="n">'+(!i?a.toFixed(2):'')+'</td><td class="n">'+bal.toFixed(2)+'</td></tr>';}).join('');
+  const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print','err');return;}
+  w.document.write('<html><head><title>Cash Book</title><style>body{font-family:system-ui,sans-serif;font-size:12px;padding:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5px 7px;text-align:left}th{background:#eee}.n{text-align:right}h2{margin:0 0 4px}</style></head><body>'+
+    '<h2>SGE-SSE — Cash Book ('+ctEsc(document.getElementById('ct-allloc').checked?'All Locations':currentLoc)+')</h2>'+
+    '<div style="margin-bottom:8px">Period: '+ctEsc(document.getElementById('ct-from').value||'Start')+' to '+ctEsc(document.getElementById('ct-to').value||'Today')+' &nbsp;|&nbsp; Opening: ₹'+opening.toFixed(2)+' &nbsp;|&nbsp; IN: ₹'+tin.toFixed(2)+' &nbsp;|&nbsp; OUT: ₹'+tout.toFixed(2)+' &nbsp;|&nbsp; <b>Closing: ₹'+bal.toFixed(2)+'</b></div>'+
+    '<table><thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description</th><th>IN</th><th>OUT</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
+  w.document.close();w.focus();setTimeout(()=>w.print(),300);
+}
+// refresh when admin logs in/out or location switches so Edit/Del buttons & scope update
+(function(){
+  const _rA=window.renderAll;
+  if(typeof _rA==='function'){window.renderAll=function(){const r=_rA.apply(this,arguments);if(ctReady)ctRender();return r;};}
+  const _sL=window.switchLoc;
+  if(typeof _sL==='function'){window.switchLoc=function(){const r=_sL.apply(this,arguments);if(ctReady)ctRender();return r;};}
+})();
 </script>
 </body>
 </html>
