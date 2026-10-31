@@ -1138,6 +1138,8 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="ar"><button class="btn sm" onclick="ctCopySql()">Copy SQL</button><button class="btn sm primary" onclick="ctLoad()">Retry</button></div>
   </div>
 
+  <div id="ct-syncbar" class="card" style="padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px"></div>
+
   <div class="grid4">
     <div class="metric"><div class="ml">Opening Balance</div><div class="mv info" id="ct-open">₹0</div></div>
     <div class="metric"><div class="ml">Cash IN</div><div class="mv success" id="ct-in">₹0</div></div>
@@ -1169,7 +1171,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
         <input type="checkbox" id="ct-link" style="width:auto" onchange="ctLinkToggle()"/> 🔗 Link to party bills (split one cash amount across several bills)
       </label>
       <div id="ct-link-panel" class="entry-panel" style="display:none;margin-top:10px">
-        <div class="fg" style="margin-bottom:8px;max-width:340px"><label>Bills from</label>
+        <div class="fg" style="margin-bottom:8px;max-width:340px;display:none"><label>Bills from</label>
           <select id="ct-src" onchange="ctLinkRefresh(true)"><option value="CB">💵 Cash Bills (Quotation module)</option><option value="LEDGER">📒 Party Ledger bills (Customer / Supplier)</option></select></div>
         <div id="ct-link-info" style="font-size:12px;color:#555;margin-bottom:8px"></div>
         <div class="tw"><table>
@@ -4459,7 +4461,7 @@ drop policy if exists "cash_txn_all" on public.cash_transactions;
 create policy "cash_txn_all" on public.cash_transactions for all to anon using (true) with check (true);
 drop policy if exists "cash_alloc_all" on public.cash_allocations;
 create policy "cash_alloc_all" on public.cash_allocations for all to anon using (true) with check (true);`;
-let ctCBRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
+let ctPendBal=0,ctCBRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
 const ctEl=id=>document.getElementById(id);
 const ctEsc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ctFmt=n=>'₹'+(+n||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});
@@ -4483,6 +4485,65 @@ function ctInit(){
 }
 function ctCopySql(){navigator.clipboard.writeText(CT_SQL).then(()=>toast('SQL copied','ok'),()=>toast('Copy failed — select the text manually','err'));}
 
+const ctNameMatch=(c,p)=>{const n=ctNorm(c),q=ctNorm(p);return !!n&&!!q&&(n===q||(q.length>=3&&n.length>=3&&(n.includes(q)||q.includes(n))));};
+let ctSyncBusy=false,ctSyncFailFor='';
+function ctCanon(name){
+  const n=ctNorm(name);
+  const le=ledgerEntries.find(e=>ctNorm(e.party_name)===n);if(le)return le.party_name;
+  const pm=(typeof parties!=='undefined'?parties:[]).find(x=>ctNorm(x.name)===n);if(pm)return pm.name;
+  return String(name||'').trim();
+}
+/* What is missing between Quotation cash bills and the Customer Ledger */
+function ctCBSyncPlan(party){
+  const plan={add:[],upd:[],del:[],mig:[]};
+  ctCBRows.forEach(r=>{
+    if(!r.doc_no||!r.cust_name||/-CMP-/i.test(r.doc_no))return;
+    if(party&&!ctNameMatch(r.cust_name,party))return;
+    const n=ctNorm(r.cust_name),bn=ctNorm(r.doc_no),amt=ctR2(r.net_payable),cancelled=(r.doc_status||'Quoted')==='Cancelled';
+    const same=e=>e.ledger_type==='CUSTOMER'&&ctNorm(e.party_name)===n&&ctNorm(e.bill_no)===bn;
+    const ex=ledgerEntries.find(e=>same(e)&&(+e.debit||0)>0);
+    if(!ex){
+      if(!cancelled&&amt>0)plan.add.push({party_name:ctCanon(r.cust_name),ledger_type:'CUSTOMER',date:r.doc_date||today(),place:'',bill_no:r.doc_no,remarks:'CB-SYNC | Cash Bill from Quotation module',debit:amt,credit:0,due_date:null});
+      return;
+    }
+    if(String(ex.remarks||'').startsWith('CB-SYNC')){
+      const paidAny=ledgerEntries.some(e=>same(e)&&(+e.credit||0)>0);
+      if(cancelled&&!paidAny)plan.del.push(ex.id);
+      else if(!cancelled&&Math.abs((+ex.debit||0)-amt)>0.005)plan.upd.push({id:ex.id,debit:amt});
+    }
+  });
+  plan.mig=ctAllocs.filter(a=>a.ledger_type==='CASHBILL'&&(!party||ctNameMatch(a.party,party)));
+  return plan;
+}
+async function ctSyncBills(plan,withDel){
+  for(let k=0;k<plan.add.length;k+=200)await api('POST','ledger_entries',plan.add.slice(k,k+200));
+  for(const u of plan.upd)await api('PATCH','ledger_entries?id=eq.'+u.id,{debit:u.debit});
+  if(withDel&&plan.del.length)await api('DELETE','ledger_entries?id=in.('+plan.del.join(',')+')');
+  for(const a of plan.mig){   // earlier cash receipts that were only saved in the cash book -> move into the ledger
+    const cash=ctRows.find(x=>x.id===a.cash_txn_id);
+    const res=await api('POST','ledger_entries',{party_name:ctCanon(a.party),ledger_type:'CUSTOMER',date:cash?cash.txn_date:today(),place:'',bill_no:a.bill_no,remarks:'Cash '+(a.voucher_no||'')+' – payment received',debit:0,credit:+a.amount,due_date:null});
+    await api('PATCH','cash_allocations?id=eq.'+a.id,{ledger_type:'CUSTOMER',ledger_entry_id:String(res[0].id)});
+  }
+  await loadLedgerEntries();
+  try{ctAllocs=await apiAll('cash_allocations?select=*&order=id.asc');}catch(_){}
+}
+function ctRenderSyncBar(){
+  const el=ctEl('ct-syncbar');if(!el)return;
+  if(!ctCBOK){el.innerHTML='<span style="color:#c62828">⚠ Could not read cash bills from the Quotation module: '+ctEsc(ctCBErr)+'</span>';return;}
+  const pl=ctCBSyncPlan('');const n=pl.add.length+pl.upd.length+pl.del.length+pl.mig.length;
+  el.innerHTML=n?'<span>🔗 <b>Cash Bills ↔ Customer Ledger:</b> <span style="color:#e65100;font-weight:700">'+n+' item(s) not yet linked</span> ('+pl.add.length+' new bill(s)'+(pl.upd.length?', '+pl.upd.length+' amount change(s)':'')+(pl.del.length?', '+pl.del.length+' cancelled':'')+(pl.mig.length?', '+pl.mig.length+' earlier receipt(s)':'')+')</span><button class="btn sm orange" onclick="ctSyncAll()">🔄 Link all cash bills to Customer Ledger</button>':'<span>✅ <b>All cash bills are linked to the Customer Ledger.</b> New payments saved here are deducted from the ledger automatically.</span>';
+}
+async function ctSyncAll(){
+  const pl=ctCBSyncPlan('');
+  if(!(pl.add.length+pl.upd.length+pl.del.length+pl.mig.length)){toast('Everything is already linked','info');return;}
+  if(!confirm('Link Quotation cash bills to the Customer Ledger?\n\n• '+pl.add.length+' cash bill(s) will be ADDED as debit entries\n• '+pl.upd.length+' bill amount(s) updated\n• '+pl.del.length+' cancelled bill(s) removed (only if unpaid)\n• '+pl.mig.length+' earlier cash receipt line(s) moved into the ledger\n\nBills already present in the ledger (same party + bill no) are skipped.'))return;
+  try{
+    await ctSyncBills(pl,true);
+    toast('Cash bills linked to Customer Ledger ✓','ok');
+    await ctLoad();
+    try{populateLedgerDropdowns();renderCustomerLedger();}catch(_){}
+  }catch(e){toast('Link failed: '+String(e.message||e).slice(0,110),'err');}
+}
 async function ctLoadCB(){
   const H={apikey:CT_QKEY,Authorization:'Bearer '+CT_QKEY};
   async function pull(cols){
@@ -4506,6 +4567,7 @@ function ctPendingCB(party){
   const rows=ctCBRows.filter(r=>(r.doc_status||'Quoted')!=='Cancelled'&&!/-CMP-/i.test(r.doc_no||'')&&match(r.cust_name));
   const paid={};
   ctAllocs.filter(a=>a.ledger_type==='CASHBILL').forEach(a=>{const k=ctNorm(a.bill_no);paid[k]=(paid[k]||0)+(+a.amount||0);});
+  ledgerEntries.forEach(e=>{if(e.ledger_type==='CUSTOMER'&&(+e.credit||0)>0&&e.bill_no&&ctNameMatch(e.party_name,party)){const k=ctNorm(e.bill_no);paid[k]=(paid[k]||0)+(+e.credit||0);}});
   const bills=rows.map(r=>{
     const amount=ctR2(r.net_payable);
     return {key:'CB:'+r.id,billNo:r.doc_no,date:r.doc_date,due:'',amount,pending:ctR2(amount-(paid[ctNorm(r.doc_no)]||0)),custName:r.cust_name,status:r.doc_status||'Quoted'};
@@ -4521,7 +4583,7 @@ async function ctLoad(){
   try{await loadLedgerEntries();}catch(e){}
   await ctLoadCB();
   ctEl('ct-setup').style.display=missing?'block':'none';
-  ctPartyList();ctRender();ctLinkRefresh();
+  ctPartyList();ctRender();ctRenderSyncBar();ctLinkRefresh();
 }
 function ctPartyList(){
   const s=new Set();
@@ -4588,17 +4650,44 @@ function ctTogglePartySum(){
   d.style.display=d.style.display==='none'?'block':'none';
   if(d.style.display==='block')ctRenderPartySum(ctFiltered().list);
 }
+let ctPsAll=false;
 function ctRenderPartySum(list){
   const m={};
   list.forEach(r=>{const k=(r.party||'').trim()||'(No party)';
     const o=m[k]||(m[k]={n:k,cnt:0,i:0,o:0,bills:0});
     o.cnt++;if(r.txn_type==='IN')o.i+=+r.amount||0;else o.o+=+r.amount||0;o.bills+=ctAllocsOf(r.id).length;});
-  ctPSList=Object.values(m).sort((a,b)=>(b.i+b.o)-(a.i+a.o));
+  if(ctPsAll){   // also parties that still owe / are owed but have no cash entry in this period
+    const have=new Set(Object.keys(m).map(ctNorm));
+    const names=new Set();
+    ctCBRows.forEach(r=>{if(r.cust_name&&(r.doc_status||'Quoted')!=='Cancelled')names.add(r.cust_name.trim());});
+    ledgerEntries.forEach(e=>{if(e.party_name)names.add(String(e.party_name).trim());});
+    names.forEach(n=>{if(n&&!have.has(ctNorm(n))){have.add(ctNorm(n));m[n]={n,cnt:0,i:0,o:0,bills:0};}});
+  }
+  Object.values(m).forEach(o=>{
+    if(o.n==='(No party)'){o.cb=0;o.cu=0;o.su=0;return;}
+    o.cb=ctCBOK?ctPendingCB(o.n).balance:0;
+    o.cu=ctPending(o.n,'CUSTOMER').balance;
+    o.su=ctPending(o.n,'SUPPLIER').balance;
+  });
+  let arr=Object.values(m);
+  if(ctPsAll)arr=arr.filter(o=>o.cnt>0||o.cb>0.005||Math.abs(o.cu)>0.005||Math.abs(o.su)>0.005);
+  ctPSList=arr.sort((a,b)=>ctPsAll?((b.cb+Math.max(b.cu,0))-(a.cb+Math.max(a.cu,0))):((b.i+b.o)-(a.i+a.o)));
   const el=ctEl('ct-partysum');
-  if(!ctPSList.length){el.innerHTML='<div class="empty">No entries</div>';return;}
-  el.innerHTML='<div class="tw"><table><thead><tr><th>Party (click to filter)</th><th style="text-align:right">Entries</th><th style="text-align:right">Cash IN</th><th style="text-align:right">Cash OUT</th><th style="text-align:right">Net</th><th style="text-align:right">Bills linked</th></tr></thead><tbody>'+
-    ctPSList.map((o,i)=>'<tr style="cursor:pointer" onclick="ctPickParty('+i+')"><td><b>'+ctEsc(o.n)+'</b></td><td style="text-align:right">'+o.cnt+'</td><td style="text-align:right;color:#2e7d32">'+ctFmt(o.i)+'</td><td style="text-align:right;color:#c62828">'+ctFmt(o.o)+'</td><td style="text-align:right;font-weight:600">'+ctFmt(o.i-o.o)+'</td><td style="text-align:right">'+o.bills+'</td></tr>').join('')+
-    '</tbody></table></div>';
+  const bar='<div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap;font-size:12px"><label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" style="width:auto" '+(ctPsAll?'checked':'')+' onchange="ctPsAll=this.checked;ctRender()"/> Include all parties with remaining amount (even without cash entries)</label><span style="flex:1"></span><button class="btn sm" onclick="ctExportParty()">⬇ Excel (party-wise)</button></div>';
+  if(!ctPSList.length){el.innerHTML=bar+'<div class="empty">No entries</div>';return;}
+  const tot=ctPSList.reduce((t,o)=>({i:t.i+o.i,o:t.o+o.o,cb:t.cb+o.cb,cu:t.cu+o.cu,su:t.su+o.su}),{i:0,o:0,cb:0,cu:0,su:0});
+  const bal=v=>Math.abs(v)<0.005?'<span style="color:#aaa">—</span>':(v<0?'<span style="color:#2e7d32">'+ctFmt(-v)+' Adv</span>':'<b style="color:#c62828">'+ctFmt(v)+'</b>');
+  el.innerHTML=bar+'<div class="tw"><table><thead><tr><th>Party (click to filter)</th><th style="text-align:right">Entries</th><th style="text-align:right">Cash IN</th><th style="text-align:right">Cash OUT</th><th style="text-align:right">Net</th><th style="text-align:right">Bills linked</th><th style="text-align:right">Remaining: Cash Bills</th><th style="text-align:right">Remaining: Customer Ledger</th><th style="text-align:right">Remaining: Supplier Ledger</th></tr></thead><tbody>'+
+    ctPSList.map((o,i)=>'<tr style="cursor:pointer" onclick="ctPickParty('+i+')"><td><b>'+ctEsc(o.n)+'</b></td><td style="text-align:right">'+o.cnt+'</td><td style="text-align:right;color:#2e7d32">'+ctFmt(o.i)+'</td><td style="text-align:right;color:#c62828">'+ctFmt(o.o)+'</td><td style="text-align:right;font-weight:600">'+ctFmt(o.i-o.o)+'</td><td style="text-align:right">'+o.bills+'</td><td style="text-align:right">'+bal(o.cb)+'</td><td style="text-align:right">'+bal(o.cu)+'</td><td style="text-align:right">'+bal(o.su)+'</td></tr>').join('')+
+    '<tr style="background:#f0f4fa;font-weight:700"><td>TOTAL</td><td></td><td style="text-align:right">'+ctFmt(tot.i)+'</td><td style="text-align:right">'+ctFmt(tot.o)+'</td><td style="text-align:right">'+ctFmt(tot.i-tot.o)+'</td><td></td><td style="text-align:right">'+ctFmt(tot.cb)+'</td><td style="text-align:right">'+ctFmt(tot.cu)+'</td><td style="text-align:right">'+ctFmt(tot.su)+'</td></tr>'+
+    '</tbody></table></div><div style="font-size:11px;color:#888;margin-top:6px">Remaining = what is still unpaid. Cash Bills = Quotation cash bills minus cash received here. Ledger = Debit − Credit in the Customer / Supplier Ledger (green “Adv” = advance paid).</div>';
+}
+function ctExportParty(){
+  const data=[['Party','Entries','Cash IN','Cash OUT','Net','Bills linked','Remaining Cash Bills','Remaining Customer Ledger','Remaining Supplier Ledger']];
+  ctPSList.forEach(o=>data.push([o.n,o.cnt,o.i,o.o,o.i-o.o,o.bills,o.cb,o.cu,o.su]));
+  const ws=XLSX.utils.aoa_to_sheet(data),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Party-wise');
+  XLSX.writeFile(wb,'Party_wise_Cash_'+today()+'.xlsx');
 }
 function ctPickParty(i){const o=ctPSList[i];if(!o)return;ctEl('ct-search').value=o.n==='(No party)'?'':o.n;ctRender();}
 
@@ -4630,14 +4719,14 @@ function ctPending(party,type){
 /* ---------- Link-to-bills panel ---------- */
 function ctTypeChanged(){
   const t=ctEl('ct-type').value;
-  ctEl('ct-src').value=t==='IN'?'CB':'LEDGER';
+  ctEl('ct-src').value='LEDGER';
   if(ctEl('ct-link').checked)ctEl('ct-cat').value=t==='IN'?'Sales Receipt (Cash)':'Purchase (Cash)';
   ctLinkRefresh(true);
 }
 function ctLinkToggle(){
   if(ctEl('ct-link').checked){
     const t=ctEl('ct-type').value;
-    ctEl('ct-src').value=t==='IN'?'CB':'LEDGER';
+    ctEl('ct-src').value='LEDGER';
     ctEl('ct-cat').value=t==='IN'?'Sales Receipt (Cash)':'Purchase (Cash)';
   }
   ctLinkRefresh(true);
@@ -4649,12 +4738,21 @@ function ctLinkRefresh(autosplit){
   const party=ctEl('ct-party').value.trim(),type=ctLedgerType(),tb=ctEl('ct-link-body'),info=ctEl('ct-link-info');
   if(!ctAllocOK){info.innerHTML='<span style="color:#c62828">Setup needed: run the SQL shown at the top of this page (cash_allocations table), then Retry.</span>';tb.innerHTML='';ctEl('ct-link-sum').innerHTML='';return;}
   if(!party){ctPend=[];ctAlloc={};info.textContent='Enter the party name above to load their pending bills.';tb.innerHTML='';ctEl('ct-link-sum').innerHTML='';return;}
+  if(type==='CUSTOMER'&&ctCBOK&&!ctSyncBusy&&ctSyncFailFor!==ctNorm(party)){
+    const pl=ctCBSyncPlan(party);
+    if(pl.add.length+pl.upd.length+pl.mig.length){
+      ctSyncBusy=true;info.innerHTML='🔗 Linking '+ctEsc(party)+'’s cash bills to the Customer Ledger…';
+      ctSyncBills(pl,false).then(()=>{ctSyncBusy=false;ctRenderSyncBar();ctLinkRefresh(true);try{renderCustomerLedger();}catch(_){}})
+        .catch(e=>{ctSyncBusy=false;ctSyncFailFor=ctNorm(party);toast('Could not link cash bills: '+String(e.message||e).slice(0,100),'err');ctLinkRefresh(true);});
+      return;
+    }
+  }
   const src=ctEl('ct-src').value;
   if(src==='CB'&&!ctCBOK){ctPend=[];ctAlloc={};info.innerHTML='<span style="color:#c62828">Could not read cash bills from the Quotation module: '+ctEsc(ctCBErr)+'</span>';tb.innerHTML='';ctEl('ct-link-sum').innerHTML='';return;}
-  const r=src==='CB'?ctPendingCB(party):ctPending(party,type);ctPend=r.bills;
+  const r=src==='CB'?ctPendingCB(party):ctPending(party,type);ctPend=r.bills;ctPendBal=r.balance;
   const keep={};ctPend.forEach(b=>{if(ctAlloc[b.key]!=null)keep[b.key]=Math.min(ctAlloc[b.key],b.pending);});ctAlloc=keep;
   if(src==='CB')info.innerHTML='💵 Cash Bills (Quotation module) — <b>'+ctEsc(r.name)+'</b> · Pending on cash bills: <b>'+ctFmt(r.balance)+'</b> · Bills: <b>'+r.bills.length+'</b>'+(r.found?'':' <span style="color:#c62828">(no cash bills found for this name in Quotation — check the spelling)</span>');
-  else info.innerHTML=(type==='CUSTOMER'?'👥 Customer ledger':'📦 Supplier ledger')+' — <b>'+ctEsc(r.name)+'</b> · Ledger balance: <b>'+ctFmt(r.balance)+'</b> · Pending bills: <b>'+r.bills.length+'</b>'+(r.found?'':' <span style="color:#c62828">(no ledger entries found for this name — check the spelling)</span>');
+  else info.innerHTML=(type==='CUSTOMER'?'👥 Customer Ledger (cash bills + other bills)':'📦 Supplier ledger')+' — <b>'+ctEsc(r.name)+'</b> · Remaining balance: <b>'+ctFmt(r.balance)+'</b> · Pending bills: <b>'+r.bills.length+'</b>'+(r.found?'':' <span style="color:#c62828">(no ledger entries found for this name — check the spelling)</span>');
   if(autosplit)ctAutoSplit(true);else ctDrawAlloc();
 }
 function ctDrawAlloc(){
@@ -4698,6 +4796,7 @@ function ctLinkSummary(){
   if(rem<-0.005)msg+='<span style="color:#c62828">Over-allocated by ₹'+ctFmt(-rem).slice(1)+'</span>';
   else if(rem>0.005)msg+='<span style="color:#e65100">Unallocated ₹'+ctFmt(rem).slice(1)+' (will be saved as advance / On Account)</span>';
   else msg+='<span style="color:#2e7d32">Fully allocated ✓</span>';
+  msg+='<div style="margin-top:4px;font-weight:700;color:#185FA5">Party remaining before: ₹'+ctFmt(ctPendBal).slice(1)+' &nbsp;→&nbsp; after this receipt: ₹'+ctFmt(ctR2(ctPendBal-al)).slice(1)+'</div>';
   el.innerHTML=msg;
 }
 
@@ -4770,6 +4869,7 @@ async function ctSave(){
     }
     ctReset();await ctLoad();
     try{populateLedgerDropdowns();renderCustomerLedger();renderSupplierLedger();}catch(_){}
+    if(linking){const nb=ctPending(pname,lt).balance;toast('Saved · '+pname+' remaining balance: '+ctFmt(nb)+(nb<0?' (advance)':''),'ok');}
   }catch(e){
     if(ctMissing(e))ctEl('ct-setup').style.display='block';
     toast('Save failed: '+String(e.message||e).slice(0,100),'err');
