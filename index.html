@@ -1133,7 +1133,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 <div id="page-cashtxn" class="page">
   <div id="ct-setup" class="card" style="display:none;border-color:#e65100;background:#fff8f0">
     <div class="card-title" style="color:#e65100">⚙ One-time setup needed</div>
-    <div style="font-size:13px;margin-bottom:8px">The <b>cash_transactions</b> table was not found in Supabase. Open <b>Supabase → SQL Editor</b>, paste this, click <b>Run</b>, then reload:</div>
+    <div style="font-size:13px;margin-bottom:8px">Cash-book tables are missing in Supabase. Open <b>Supabase → SQL Editor</b>, paste this, click <b>Run</b>, then press Retry. (Safe to run again if you ran an earlier version.)</div>
     <pre id="ct-sql" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:8px;font-size:12px;overflow:auto;white-space:pre-wrap"></pre>
     <div class="ar"><button class="btn sm" onclick="ctCopySql()">Copy SQL</button><button class="btn sm primary" onclick="ctLoad()">Retry</button></div>
   </div>
@@ -1150,19 +1150,41 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="frow c3">
       <div class="fg"><label>Date</label><input type="date" id="ct-date"/></div>
       <div class="fg"><label>Type</label>
-        <select id="ct-type"><option value="OUT">Cash OUT (Expense / Payment)</option><option value="IN">Cash IN (Receipt / Top-up)</option></select></div>
+        <select id="ct-type" onchange="ctTypeChanged()"><option value="OUT">Cash OUT (Expense / Payment)</option><option value="IN">Cash IN (Receipt / Top-up)</option></select></div>
       <div class="fg"><label>Category</label><select id="ct-cat"></select></div>
     </div>
     <div class="frow c3">
-      <div class="fg"><label>Paid To / Received From</label><input id="ct-party" placeholder="Name"/></div>
-      <div class="fg"><label>Amount (₹)</label><input type="number" id="ct-amt" min="0" step="0.01" placeholder="0.00"/></div>
+      <div class="fg"><label>Paid To / Received From (Party)</label><input id="ct-party" list="ct-partylist" autocomplete="off" placeholder="Type or pick party" onchange="ctLinkRefresh(true)"/><datalist id="ct-partylist"></datalist></div>
+      <div class="fg"><label>Amount (₹)</label><input type="number" id="ct-amt" min="0" step="0.01" placeholder="0.00" oninput="ctLinkSummary()" onchange="ctLinkRefresh(true)"/></div>
       <div class="fg"><label>Mode</label>
         <select id="ct-mode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Cheque</option></select></div>
     </div>
     <div class="frow c2">
-      <div class="fg"><label>Description / Purpose</label><input id="ct-desc" placeholder="e.g. Auto fare for material delivery"/></div>
+      <div class="fg"><label>Description / Purpose</label><input id="ct-desc" placeholder="e.g. Cash received from client against bills"/></div>
       <div class="fg"><label>Entered By</label><input id="ct-op" placeholder="Operator name"/></div>
     </div>
+
+    <div id="ct-link-wrap" style="margin-top:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:#185FA5">
+        <input type="checkbox" id="ct-link" style="width:auto" onchange="ctLinkToggle()"/> 🔗 Link to party bills (split one cash amount across several bills)
+      </label>
+      <div id="ct-link-panel" class="entry-panel" style="display:none;margin-top:10px">
+        <div class="fg" style="margin-bottom:8px;max-width:340px"><label>Bills from</label>
+          <select id="ct-src" onchange="ctLinkRefresh(true)"><option value="CB">💵 Cash Bills (Quotation module)</option><option value="LEDGER">📒 Party Ledger bills (Customer / Supplier)</option></select></div>
+        <div id="ct-link-info" style="font-size:12px;color:#555;margin-bottom:8px"></div>
+        <div class="tw"><table>
+          <thead><tr><th>Bill No</th><th>Bill Date</th><th>Due</th><th style="text-align:right">Bill Amt</th><th style="text-align:right">Pending</th><th style="text-align:right;width:150px">Pay now (₹)</th></tr></thead>
+          <tbody id="ct-link-body"></tbody>
+        </table></div>
+        <div id="ct-link-sum" style="margin-top:10px;font-size:13px;font-weight:600"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn sm primary" type="button" onclick="ctAutoSplit()">⚡ Auto-split (oldest bill first)</button>
+          <button class="btn sm" type="button" onclick="ctClearAlloc()">Clear</button>
+        </div>
+        <div style="font-size:11px;color:#888;margin-top:8px">On save: one cash entry is recorded here, and a payment (credit) line is added to the party's ledger for each bill. Any amount not given to a bill is saved as an advance (On Account).</div>
+      </div>
+    </div>
+
     <div class="ar">
       <button class="btn" onclick="ctReset()">Clear</button>
       <button class="btn primary" id="ct-save-btn" onclick="ctSave()">Save Entry</button>
@@ -1184,11 +1206,13 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <button class="btn sm" onclick="ctQuick('today')">Today</button>
       <button class="btn sm" onclick="ctQuick('month')">This Month</button>
       <button class="btn sm" onclick="ctQuick('all')">All</button>
+      <button class="btn sm" onclick="ctTogglePartySum()">👥 Party-wise</button>
       <button class="btn sm" onclick="ctExport()">⬇ Excel</button>
       <button class="btn sm" onclick="ctPrint()">🖨 Print</button>
     </div>
+    <div id="ct-partysum" style="display:none;margin-bottom:14px"></div>
     <div class="tw"><table>
-      <thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description</th><th>Mode</th><th style="text-align:right">IN (₹)</th><th style="text-align:right">OUT (₹)</th><th style="text-align:right">Balance (₹)</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description / Linked Bills</th><th>Mode</th><th style="text-align:right">IN (₹)</th><th style="text-align:right">OUT (₹)</th><th style="text-align:right">Balance (₹)</th><th></th></tr></thead>
       <tbody id="ct-body"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
     </table></div>
   </div>
@@ -4400,8 +4424,10 @@ window.addEventListener("load",()=>{
 
 </script>
 <script>
-/* ===== CASH TRANSACTION DETAILS (Petty Cash / Cash Book) — Supabase table "cash_transactions" ===== */
+/* ===== CASH TRANSACTION DETAILS (Petty Cash / Cash Book) =====
+   Supabase tables: cash_transactions, cash_allocations (links cash -> party ledger bills via ledger_entries) */
 const CT_CATS=['Petty Cash Top-up','Transport / Auto','Loading / Unloading','Tea / Food','Fuel','Staff Advance','Salary','Repairs & Maintenance','Stationery / Office','Purchase (Cash)','Sales Receipt (Cash)','Bank Deposit / Withdrawal','Other'];
+const CT_QURL='https://qszzrdxwydlbdmfuddbr.supabase.co',CT_QKEY='sb_publishable_jSlyI3A_7UwdXcCrEhZ4cA_p65zSgVW';
 const CT_SQL=`create table if not exists public.cash_transactions (
   id bigint generated by default as identity primary key,
   voucher_no text,
@@ -4416,54 +4442,110 @@ const CT_SQL=`create table if not exists public.cash_transactions (
   operator text,
   created_at timestamptz default now()
 );
+create table if not exists public.cash_allocations (
+  id bigint generated by default as identity primary key,
+  cash_txn_id bigint references public.cash_transactions(id) on delete cascade,
+  voucher_no text,
+  party text,
+  ledger_type text,
+  ledger_entry_id text,
+  bill_no text,
+  amount numeric(12,2),
+  created_at timestamptz default now()
+);
 alter table public.cash_transactions enable row level security;
-create policy "cash_txn_all" on public.cash_transactions
-  for all to anon using (true) with check (true);`;
-let ctRows=[], ctEditId=null, ctReady=false;
+alter table public.cash_allocations enable row level security;
+drop policy if exists "cash_txn_all" on public.cash_transactions;
+create policy "cash_txn_all" on public.cash_transactions for all to anon using (true) with check (true);
+drop policy if exists "cash_alloc_all" on public.cash_allocations;
+create policy "cash_alloc_all" on public.cash_allocations for all to anon using (true) with check (true);`;
+let ctCBRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
+const ctEl=id=>document.getElementById(id);
 const ctEsc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ctFmt=n=>'₹'+(+n||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});
 const ctDMY=d=>{const p=String(d||'').split('-');return p.length===3?p[2]+'-'+p[1]+'-'+p[0]:d;};
+const ctR2=n=>Math.round((+n||0)*100)/100;
+const ctNorm=s=>String(s||'').trim().toUpperCase().replace(/\s+/g,' ');
+const ctMissing=e=>/cash_transactions|cash_allocations|PGRST205|42P01|relation/i.test(String((e&&e.message)||e));
+const ctLedgerType=()=>ctEl('ct-type').value==='IN'?'CUSTOMER':'SUPPLIER';
 
 function ctInit(){
   if(!ctReady){
     ctReady=true;
-    document.getElementById('ct-sql').textContent=CT_SQL;
-    document.getElementById('ct-cat').innerHTML=CT_CATS.map(c=>'<option>'+ctEsc(c)+'</option>').join('');
-    document.getElementById('ct-fcat').innerHTML='<option value="">All Categories</option>'+CT_CATS.map(c=>'<option>'+ctEsc(c)+'</option>').join('');
-    document.getElementById('ct-date').value=today();
-    document.getElementById('ct-op').value=localStorage.getItem('sge_operator')||'';
+    ctEl('ct-sql').textContent=CT_SQL;
+    ctEl('ct-cat').innerHTML=CT_CATS.map(c=>'<option>'+ctEsc(c)+'</option>').join('');
+    ctEl('ct-fcat').innerHTML='<option value="">All Categories</option>'+CT_CATS.map(c=>'<option>'+ctEsc(c)+'</option>').join('');
+    ctEl('ct-date').value=today();
+    ctEl('ct-op').value=localStorage.getItem('sge_operator')||'';
     ctQuick('month',true);
   }
   ctLoad();
 }
 function ctCopySql(){navigator.clipboard.writeText(CT_SQL).then(()=>toast('SQL copied','ok'),()=>toast('Copy failed — select the text manually','err'));}
-async function ctLoad(){
-  try{
-    ctRows=await apiAll('cash_transactions?select=*&order=txn_date.asc,id.asc');
-    document.getElementById('ct-setup').style.display='none';
-  }catch(e){
-    ctRows=[];
-    if(/cash_transactions|PGRST205|42P01|relation/i.test(String(e.message||e))) document.getElementById('ct-setup').style.display='block';
-    else toast('Could not load cash book: '+String(e.message||e).slice(0,100),'err');
+
+async function ctLoadCB(){
+  const H={apikey:CT_QKEY,Authorization:'Bearer '+CT_QKEY};
+  async function pull(cols){
+    let out=[],from=0;
+    while(true){
+      const r=await fetch(CT_QURL+'/rest/v1/quotations?select='+cols+'&doc_type=eq.CB&order=doc_date.asc,created_at.asc',{headers:{...H,Range:from+'-'+(from+999)}});
+      if(!r.ok)throw new Error(await r.text());
+      const pg=await r.json();out=out.concat(pg);if(pg.length<1000)break;from+=1000;
+    }
+    return out;
   }
-  ctRender();
+  try{
+    try{ctCBRows=await pull('id,doc_no,doc_date,cust_name,net_payable,doc_status');}
+    catch(e){if(/doc_status/i.test(String(e.message||e)))ctCBRows=await pull('id,doc_no,doc_date,cust_name,net_payable');else throw e;}
+    ctCBOK=true;ctCBErr='';
+  }catch(e){ctCBRows=[];ctCBOK=false;ctCBErr=String(e.message||e).slice(0,120);}
+}
+function ctPendingCB(party){
+  const p=ctNorm(party);
+  const match=c=>{const n=ctNorm(c);return !!n&&(n===p||(p.length>=3&&n.length>=3&&(n.includes(p)||p.includes(n))));};
+  const rows=ctCBRows.filter(r=>(r.doc_status||'Quoted')!=='Cancelled'&&!/-CMP-/i.test(r.doc_no||'')&&match(r.cust_name));
+  const paid={};
+  ctAllocs.filter(a=>a.ledger_type==='CASHBILL').forEach(a=>{const k=ctNorm(a.bill_no);paid[k]=(paid[k]||0)+(+a.amount||0);});
+  const bills=rows.map(r=>{
+    const amount=ctR2(r.net_payable);
+    return {key:'CB:'+r.id,billNo:r.doc_no,date:r.doc_date,due:'',amount,pending:ctR2(amount-(paid[ctNorm(r.doc_no)]||0)),custName:r.cust_name,status:r.doc_status||'Quoted'};
+  }).filter(b=>b.pending>0.005);
+  return {bills,balance:ctR2(bills.reduce((t,b)=>t+b.pending,0)),name:String(party||'').trim(),found:rows.length>0};
+}
+async function ctLoad(){
+  let missing=false;
+  try{ctRows=await apiAll('cash_transactions?select=*&order=txn_date.asc,id.asc');}
+  catch(e){ctRows=[];if(ctMissing(e))missing=true;else toast('Could not load cash book: '+String(e.message||e).slice(0,100),'err');}
+  try{ctAllocs=await apiAll('cash_allocations?select=*&order=id.asc');ctAllocOK=true;}
+  catch(e){ctAllocs=[];ctAllocOK=false;if(ctMissing(e))missing=true;}
+  try{await loadLedgerEntries();}catch(e){}
+  await ctLoadCB();
+  ctEl('ct-setup').style.display=missing?'block':'none';
+  ctPartyList();ctRender();ctLinkRefresh();
+}
+function ctPartyList(){
+  const s=new Set();
+  ledgerEntries.forEach(e=>{if(e.party_name)s.add(e.party_name);});
+  (typeof parties!=='undefined'?parties:[]).forEach(p=>{if(p&&p.name)s.add(p.name);});
+  ctRows.forEach(r=>{if(r.party)s.add(r.party);});
+  ctCBRows.forEach(r=>{if(r.cust_name)s.add(r.cust_name);});
+  ctEl('ct-partylist').innerHTML=[...s].sort().map(n=>'<option value="'+ctEsc(n)+'"></option>').join('');
 }
 function ctQuick(k,silent){
-  const t=today(),f=document.getElementById('ct-from'),to=document.getElementById('ct-to');
+  const t=today(),f=ctEl('ct-from'),to=ctEl('ct-to');
   if(k==='today'){f.value=t;to.value=t;}
   else if(k==='month'){f.value=t.slice(0,8)+'01';to.value=t;}
   else{f.value='';to.value='';}
   if(!silent)ctRender();
 }
 function ctFiltered(){
-  const from=document.getElementById('ct-from').value,to=document.getElementById('ct-to').value;
-  const ft=document.getElementById('ct-ftype').value,fc=document.getElementById('ct-fcat').value;
-  const q=document.getElementById('ct-search').value.trim().toLowerCase();
-  const all=document.getElementById('ct-allloc').checked;
+  const from=ctEl('ct-from').value,to=ctEl('ct-to').value;
+  const ft=ctEl('ct-ftype').value,fc=ctEl('ct-fcat').value;
+  const q=ctEl('ct-search').value.trim().toLowerCase();
+  const all=ctEl('ct-allloc').checked;
   const scope=ctRows.filter(r=>all||locKey(r.location)===locKey(currentLoc));
-  // opening balance = everything in scope before the From date
   let opening=0;
-  if(from) scope.filter(r=>r.txn_date<from).forEach(r=>{opening+=(r.txn_type==='IN'?1:-1)*(+r.amount||0);});
+  if(from)scope.filter(r=>r.txn_date<from).forEach(r=>{opening+=(r.txn_type==='IN'?1:-1)*(+r.amount||0);});
   const list=scope.filter(r=>{
     if(from&&r.txn_date<from)return false;
     if(to&&r.txn_date>to)return false;
@@ -4474,96 +4556,264 @@ function ctFiltered(){
   });
   return {list,opening};
 }
+const ctAllocsOf=id=>ctAllocs.filter(a=>a.cash_txn_id===id);
+function ctBillsText(id){return ctAllocsOf(id).map(a=>(a.bill_no||'(no bill no)')+': '+ctR2(a.amount)).join('; ');}
+
 function ctRender(){
-  const body=document.getElementById('ct-body'); if(!body)return;
+  const body=ctEl('ct-body');if(!body)return;
   const {list,opening}=ctFiltered();
-  const filtered=!!(document.getElementById('ct-ftype').value||document.getElementById('ct-fcat').value||document.getElementById('ct-search').value.trim());
   let bal=opening,tin=0,tout=0;
   const rows=list.map(r=>{
     const a=+r.amount||0,isIn=r.txn_type==='IN';
     if(isIn){tin+=a;bal+=a;}else{tout+=a;bal-=a;}
+    const al=ctAllocsOf(r.id);
+    const chips=al.length?'<div style="font-size:11px;color:#185FA5;margin-top:3px">🔗 '+al.map(x=>ctEsc(x.bill_no||'(no bill no)')+' '+ctFmt(x.amount)).join(' · ')+'</div>':'';
     const acts=isAdmin?'<button class="btn sm" onclick="ctEdit('+r.id+')">Edit</button> <button class="btn sm dng" onclick="ctDel('+r.id+')">Del</button>':'';
-    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+'</td><td>'+ctEsc(r.mode||'')+'</td>'+
+    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+chips+'</td><td>'+ctEsc(r.mode||'')+'</td>'+
       '<td style="text-align:right;color:#2e7d32;font-weight:600">'+(isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
       '<td style="text-align:right;color:#c62828;font-weight:600">'+(!isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
       '<td style="text-align:right;font-weight:600">'+bal.toLocaleString('en-IN',{minimumFractionDigits:2})+'</td><td style="white-space:nowrap">'+acts+'</td></tr>';
   });
   body.innerHTML=rows.length?rows.join(''):'<tr><td colspan="10" class="empty">No cash entries for this selection</td></tr>';
-  document.getElementById('ct-open').textContent=ctFmt(opening);
-  document.getElementById('ct-in').textContent=ctFmt(tin);
-  document.getElementById('ct-out').textContent=ctFmt(tout);
-  const c=document.getElementById('ct-close');c.textContent=ctFmt(bal);c.className='mv '+(bal<0?'danger':'success');
-  if(filtered) document.getElementById('ct-open').title='Filters active: balance column reflects filtered entries only';
+  ctEl('ct-open').textContent=ctFmt(opening);
+  ctEl('ct-in').textContent=ctFmt(tin);
+  ctEl('ct-out').textContent=ctFmt(tout);
+  const c=ctEl('ct-close');c.textContent=ctFmt(bal);c.className='mv '+(bal<0?'danger':'success');
+  if(ctEl('ct-partysum').style.display!=='none')ctRenderPartySum(list);
 }
+
+/* ---------- Party-wise summary ---------- */
+function ctTogglePartySum(){
+  const d=ctEl('ct-partysum');
+  d.style.display=d.style.display==='none'?'block':'none';
+  if(d.style.display==='block')ctRenderPartySum(ctFiltered().list);
+}
+function ctRenderPartySum(list){
+  const m={};
+  list.forEach(r=>{const k=(r.party||'').trim()||'(No party)';
+    const o=m[k]||(m[k]={n:k,cnt:0,i:0,o:0,bills:0});
+    o.cnt++;if(r.txn_type==='IN')o.i+=+r.amount||0;else o.o+=+r.amount||0;o.bills+=ctAllocsOf(r.id).length;});
+  ctPSList=Object.values(m).sort((a,b)=>(b.i+b.o)-(a.i+a.o));
+  const el=ctEl('ct-partysum');
+  if(!ctPSList.length){el.innerHTML='<div class="empty">No entries</div>';return;}
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Party (click to filter)</th><th style="text-align:right">Entries</th><th style="text-align:right">Cash IN</th><th style="text-align:right">Cash OUT</th><th style="text-align:right">Net</th><th style="text-align:right">Bills linked</th></tr></thead><tbody>'+
+    ctPSList.map((o,i)=>'<tr style="cursor:pointer" onclick="ctPickParty('+i+')"><td><b>'+ctEsc(o.n)+'</b></td><td style="text-align:right">'+o.cnt+'</td><td style="text-align:right;color:#2e7d32">'+ctFmt(o.i)+'</td><td style="text-align:right;color:#c62828">'+ctFmt(o.o)+'</td><td style="text-align:right;font-weight:600">'+ctFmt(o.i-o.o)+'</td><td style="text-align:right">'+o.bills+'</td></tr>').join('')+
+    '</tbody></table></div>';
+}
+function ctPickParty(i){const o=ctPSList[i];if(!o)return;ctEl('ct-search').value=o.n==='(No party)'?'':o.n;ctRender();}
+
+/* ---------- Pending bills from party ledger ---------- */
+function ctPending(party,type){
+  const p=ctNorm(party);
+  const rows=ledgerEntries.filter(e=>ctNorm(e.party_name)===p&&e.ledger_type===type)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.created_at||'').localeCompare(String(b.created_at||'')));
+  const map={},order=[];let balance=0,pool=0;
+  rows.forEach(e=>{
+    const d=+e.debit||0;balance+=d-(+e.credit||0);
+    if(d>0){
+      const bn=(e.bill_no||'').trim(),k=bn?'B:'+bn.toUpperCase():'I:'+e.id;
+      if(!map[k]){map[k]={key:k,billNo:bn,date:e.date,due:e.due_date||'',amount:0,paid:0};order.push(k);}
+      map[k].amount+=d;if(!map[k].due&&e.due_date)map[k].due=e.due_date;
+    }
+  });
+  rows.forEach(e=>{
+    const c=+e.credit||0;if(c<=0)return;
+    const bn=(e.bill_no||'').trim().toUpperCase(),k='B:'+bn;
+    if(bn&&map[k])map[k].paid+=c;else pool+=c;   // payment tagged to a bill -> that bill; other payments -> oldest first
+  });
+  order.forEach(k=>{const b=map[k];if(b.paid>b.amount){pool+=b.paid-b.amount;b.paid=b.amount;}});
+  order.forEach(k=>{const b=map[k];if(pool>0&&b.paid<b.amount){const t=Math.min(pool,b.amount-b.paid);b.paid+=t;pool-=t;}});
+  const bills=order.map(k=>{const b=map[k];b.pending=ctR2(b.amount-b.paid);return b;}).filter(b=>b.pending>0.005);
+  return {bills,balance:ctR2(balance),name:rows.length?rows[0].party_name:String(party||'').trim(),found:rows.length>0};
+}
+
+/* ---------- Link-to-bills panel ---------- */
+function ctTypeChanged(){
+  const t=ctEl('ct-type').value;
+  ctEl('ct-src').value=t==='IN'?'CB':'LEDGER';
+  if(ctEl('ct-link').checked)ctEl('ct-cat').value=t==='IN'?'Sales Receipt (Cash)':'Purchase (Cash)';
+  ctLinkRefresh(true);
+}
+function ctLinkToggle(){
+  if(ctEl('ct-link').checked){
+    const t=ctEl('ct-type').value;
+    ctEl('ct-src').value=t==='IN'?'CB':'LEDGER';
+    ctEl('ct-cat').value=t==='IN'?'Sales Receipt (Cash)':'Purchase (Cash)';
+  }
+  ctLinkRefresh(true);
+}
+function ctLinkRefresh(autosplit){
+  const panel=ctEl('ct-link-panel');
+  if(!ctEl('ct-link').checked){panel.style.display='none';return;}
+  panel.style.display='block';
+  const party=ctEl('ct-party').value.trim(),type=ctLedgerType(),tb=ctEl('ct-link-body'),info=ctEl('ct-link-info');
+  if(!ctAllocOK){info.innerHTML='<span style="color:#c62828">Setup needed: run the SQL shown at the top of this page (cash_allocations table), then Retry.</span>';tb.innerHTML='';ctEl('ct-link-sum').innerHTML='';return;}
+  if(!party){ctPend=[];ctAlloc={};info.textContent='Enter the party name above to load their pending bills.';tb.innerHTML='';ctEl('ct-link-sum').innerHTML='';return;}
+  const src=ctEl('ct-src').value;
+  if(src==='CB'&&!ctCBOK){ctPend=[];ctAlloc={};info.innerHTML='<span style="color:#c62828">Could not read cash bills from the Quotation module: '+ctEsc(ctCBErr)+'</span>';tb.innerHTML='';ctEl('ct-link-sum').innerHTML='';return;}
+  const r=src==='CB'?ctPendingCB(party):ctPending(party,type);ctPend=r.bills;
+  const keep={};ctPend.forEach(b=>{if(ctAlloc[b.key]!=null)keep[b.key]=Math.min(ctAlloc[b.key],b.pending);});ctAlloc=keep;
+  if(src==='CB')info.innerHTML='💵 Cash Bills (Quotation module) — <b>'+ctEsc(r.name)+'</b> · Pending on cash bills: <b>'+ctFmt(r.balance)+'</b> · Bills: <b>'+r.bills.length+'</b>'+(r.found?'':' <span style="color:#c62828">(no cash bills found for this name in Quotation — check the spelling)</span>');
+  else info.innerHTML=(type==='CUSTOMER'?'👥 Customer ledger':'📦 Supplier ledger')+' — <b>'+ctEsc(r.name)+'</b> · Ledger balance: <b>'+ctFmt(r.balance)+'</b> · Pending bills: <b>'+r.bills.length+'</b>'+(r.found?'':' <span style="color:#c62828">(no ledger entries found for this name — check the spelling)</span>');
+  if(autosplit)ctAutoSplit(true);else ctDrawAlloc();
+}
+function ctDrawAlloc(){
+  const tb=ctEl('ct-link-body'),t=today();
+  if(!ctPend.length){tb.innerHTML='<tr><td colspan="6" class="empty" style="padding:14px">No pending bills for this party.</td></tr>';ctLinkSummary();return;}
+  tb.innerHTML=ctPend.map((b,i)=>{
+    const od=b.due&&b.due<t;
+    return '<tr><td><b>'+ctEsc(b.billNo||'(no bill no)')+'</b>'+(b.custName?'<div style="font-size:11px;color:#888">'+ctEsc(b.custName)+(b.status?' · '+ctEsc(b.status):'')+'</div>':'')+'</td><td>'+ctEsc(ctDMY(b.date))+'</td><td style="color:'+(od?'#c62828':'#555')+'">'+(b.due?ctEsc(ctDMY(b.due))+(od?' ⚠':''):'--')+'</td>'+
+      '<td style="text-align:right">'+ctFmt(b.amount)+'</td><td style="text-align:right;font-weight:600">'+ctFmt(b.pending)+'</td>'+
+      '<td style="text-align:right;white-space:nowrap"><input type="number" id="ct-al-'+i+'" min="0" max="'+b.pending+'" step="0.01" value="'+(ctAlloc[b.key]||'')+'" oninput="ctAllocSet('+i+',this)" style="width:100px;text-align:right;display:inline-block"/> <button type="button" class="btn sm" onclick="ctAllocFull('+i+')" title="Fill remaining cash up to this bill\'s pending">Full</button></td></tr>';
+  }).join('');
+  ctLinkSummary();
+}
+function ctAllocSet(i,inp){
+  const b=ctPend[i];if(!b)return;
+  let v=parseFloat(inp.value)||0;
+  if(v>b.pending){v=b.pending;inp.value=v;}
+  if(v<0){v=0;inp.value='';}
+  ctAlloc[b.key]=ctR2(v);ctLinkSummary();
+}
+function ctAllocTotal(){return ctR2(ctPend.reduce((s,b)=>s+(ctAlloc[b.key]||0),0));}
+function ctAllocFull(i){
+  const b=ctPend[i];if(!b)return;
+  const amt=parseFloat(ctEl('ct-amt').value)||0;
+  const others=ctAllocTotal()-(ctAlloc[b.key]||0);
+  const v=ctR2(Math.max(0,Math.min(b.pending,amt-others)));
+  ctAlloc[b.key]=v;ctEl('ct-al-'+i).value=v||'';ctLinkSummary();
+}
+function ctAutoSplit(noToast){
+  let rem=parseFloat(ctEl('ct-amt').value)||0;
+  ctAlloc={};
+  ctPend.forEach(b=>{const t=ctR2(Math.min(rem,b.pending));if(t>0){ctAlloc[b.key]=t;rem=ctR2(rem-t);}});
+  ctDrawAlloc();
+  if(!noToast&&!(parseFloat(ctEl('ct-amt').value)>0))toast('Enter the cash amount first','info');
+}
+function ctClearAlloc(){ctAlloc={};ctDrawAlloc();}
+function ctLinkSummary(){
+  const el=ctEl('ct-link-sum');if(!el||!ctEl('ct-link').checked||!ctAllocOK)return;
+  const amt=parseFloat(ctEl('ct-amt').value)||0,al=ctAllocTotal(),rem=ctR2(amt-al);
+  let msg='Cash ₹'+ctFmt(amt).slice(1)+' &nbsp;|&nbsp; Given to bills ₹'+ctFmt(al).slice(1)+' &nbsp;|&nbsp; ';
+  if(rem<-0.005)msg+='<span style="color:#c62828">Over-allocated by ₹'+ctFmt(-rem).slice(1)+'</span>';
+  else if(rem>0.005)msg+='<span style="color:#e65100">Unallocated ₹'+ctFmt(rem).slice(1)+' (will be saved as advance / On Account)</span>';
+  else msg+='<span style="color:#2e7d32">Fully allocated ✓</span>';
+  el.innerHTML=msg;
+}
+
+/* ---------- Voucher / reset / save ---------- */
 function ctVoucher(d){
   const p='CV-'+d.replace(/-/g,'').slice(2)+'-';
   let mx=0;ctRows.forEach(r=>{if((r.voucher_no||'').startsWith(p)){const n=parseInt(r.voucher_no.slice(p.length))||0;if(n>mx)mx=n;}});
   return p+String(mx+1).padStart(3,'0');
 }
 function ctReset(){
-  ctEditId=null;
-  document.getElementById('ct-date').value=today();
-  document.getElementById('ct-type').value='OUT';
-  document.getElementById('ct-cat').selectedIndex=0;
-  ['ct-party','ct-amt','ct-desc'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('ct-mode').value='Cash';
-  document.getElementById('ct-save-btn').textContent='Save Entry';
+  ctEditId=null;ctAlloc={};ctPend=[];
+  ctEl('ct-date').value=today();
+  ctEl('ct-type').value='OUT';
+  ctEl('ct-cat').selectedIndex=0;
+  ['ct-party','ct-amt','ct-desc'].forEach(i=>ctEl(i).value='');
+  ctEl('ct-mode').value='Cash';
+  ctEl('ct-link').checked=false;ctEl('ct-link-wrap').style.display='block';ctEl('ct-src').value='LEDGER';
+  ctLinkRefresh();
+  ctEl('ct-save-btn').textContent='Save Entry';
 }
 async function ctSave(){
-  const date=document.getElementById('ct-date').value;
-  const amt=parseFloat(document.getElementById('ct-amt').value);
-  const type=document.getElementById('ct-type').value;
-  const op=document.getElementById('ct-op').value.trim();
+  const date=ctEl('ct-date').value,amt=ctR2(parseFloat(ctEl('ct-amt').value));
+  const type=ctEl('ct-type').value,op=ctEl('ct-op').value.trim(),party=ctEl('ct-party').value.trim();
   if(!date){toast('Select a date','err');return;}
   if(!(amt>0)){toast('Enter a valid amount','err');return;}
   if(op)localStorage.setItem('sge_operator',op);
-  const rec={txn_date:date,txn_type:type,category:document.getElementById('ct-cat').value,
-    party:document.getElementById('ct-party').value.trim(),description:document.getElementById('ct-desc').value.trim(),
-    amount:amt,mode:document.getElementById('ct-mode').value,operator:op};
+  const linking=ctEl('ct-link').checked&&!ctEditId;
+  const lt=ctLedgerType(),src=ctEl('ct-src').value;
+  let allocs=[],remain=0,pname=party;
+  if(linking){
+    if(!ctAllocOK){toast('Run the setup SQL first (cash_allocations table missing)','err');return;}
+    if(!party){toast('Enter the party name to link bills','err');return;}
+    pname=src==='CB'?party:(ctPending(party,lt).name||party);
+    allocs=ctPend.map(b=>({b,amt:ctR2(ctAlloc[b.key]||0)})).filter(x=>x.amt>0.004);
+    const tot=ctR2(allocs.reduce((s,x)=>s+x.amt,0));
+    if(tot>amt+0.005){toast('Bills total ₹'+tot+' is more than the cash amount','err');return;}
+    remain=ctR2(amt-tot);
+    if(remain>0.005&&!confirm(allocs.length?'₹'+remain+' is not given to any bill.\n\nKeep it as an advance (On Account) for this party?':'No bill selected.\n\nKeep the full ₹'+amt+' as an advance (On Account) for this party?'))return;
+  }
+  const rec={txn_date:date,txn_type:type,category:ctEl('ct-cat').value,party:linking?pname:party,description:ctEl('ct-desc').value.trim(),
+    amount:amt,mode:ctEl('ct-mode').value,operator:op};
   try{
     if(ctEditId){
       await api('PATCH','cash_transactions?id=eq.'+ctEditId,rec);
       toast('Entry updated','ok');
     }else{
       rec.voucher_no=ctVoucher(date);rec.location=locKey(currentLoc);
-      await api('POST','cash_transactions',rec);
-      toast('Saved '+rec.voucher_no,'ok');
+      const cash=(await api('POST','cash_transactions',rec))[0];
+      if(linking&&src==='CB'){
+        const arows=allocs.map(x=>({cash_txn_id:cash.id,voucher_no:cash.voucher_no,party:pname,ledger_type:'CASHBILL',ledger_entry_id:'',bill_no:x.b.billNo,amount:x.amt}));
+        if(remain>0.005)arows.push({cash_txn_id:cash.id,voucher_no:cash.voucher_no,party:pname,ledger_type:'CASHBILL',ledger_entry_id:'',bill_no:'ON ACCOUNT',amount:remain});
+        try{await api('POST','cash_allocations',arows);}
+        catch(e){try{await api('DELETE','cash_transactions?id=eq.'+cash.id);}catch(_){}toast('Could not link bills, nothing saved: '+String(e.message||e).slice(0,100),'err');return;}
+        toast('Saved '+cash.voucher_no+' — split over '+arows.length+' cash bill line(s)','ok');
+      }else if(linking){
+        const mk=(bn,a,note)=>({party_name:pname,ledger_type:lt,date,place:'',bill_no:bn,remarks:note,debit:0,credit:a,due_date:null});
+        const lrows=allocs.map(x=>mk(x.b.billNo,x.amt,'Cash '+cash.voucher_no+' – '+(x.amt>=x.b.pending-0.005?'full':'part')+' payment (cash ₹'+fmt(amt)+' split over '+(allocs.length+(remain>0.005?1:0))+' line(s))'));
+        if(remain>0.005)lrows.push(mk('ON ACCOUNT',remain,'Cash '+cash.voucher_no+' – advance / on account'));
+        let lres=[];
+        try{
+          lres=await api('POST','ledger_entries',lrows);
+          await api('POST','cash_allocations',lres.map((l,i)=>({cash_txn_id:cash.id,voucher_no:cash.voucher_no,party:pname,ledger_type:lt,ledger_entry_id:String(l.id),bill_no:lrows[i].bill_no,amount:lrows[i].credit})));
+        }catch(e){
+          try{if(lres.length)await api('DELETE','ledger_entries?id=in.('+lres.map(l=>l.id).join(',')+')');}catch(_){}
+          try{await api('DELETE','cash_transactions?id=eq.'+cash.id);}catch(_){}
+          toast('Could not link bills, nothing saved: '+String(e.message||e).slice(0,100),'err');return;
+        }
+        toast('Saved '+cash.voucher_no+' — split into '+lrows.length+' ledger line(s)','ok');
+      }else toast('Saved '+rec.voucher_no,'ok');
     }
     ctReset();await ctLoad();
+    try{populateLedgerDropdowns();renderCustomerLedger();renderSupplierLedger();}catch(_){}
   }catch(e){
-    if(/cash_transactions|PGRST205|42P01|relation/i.test(String(e.message||e))) document.getElementById('ct-setup').style.display='block';
+    if(ctMissing(e))ctEl('ct-setup').style.display='block';
     toast('Save failed: '+String(e.message||e).slice(0,100),'err');
   }
 }
 function ctEdit(id){
   if(!isAdmin)return;
   const r=ctRows.find(x=>x.id===id);if(!r)return;
+  if(ctAllocsOf(id).length){toast('This entry is linked to party bills. To change it, delete it and enter again.','info');return;}
   ctEditId=id;
-  document.getElementById('ct-date').value=r.txn_date;
-  document.getElementById('ct-type').value=r.txn_type;
-  document.getElementById('ct-cat').value=r.category||CT_CATS[0];
-  document.getElementById('ct-party').value=r.party||'';
-  document.getElementById('ct-amt').value=r.amount;
-  document.getElementById('ct-mode').value=r.mode||'Cash';
-  document.getElementById('ct-desc').value=r.description||'';
-  document.getElementById('ct-op').value=r.operator||'';
-  document.getElementById('ct-save-btn').textContent='Update '+(r.voucher_no||'Entry');
-  document.getElementById('ct-form-title').scrollIntoView({behavior:'smooth'});
+  ctEl('ct-date').value=r.txn_date;
+  ctEl('ct-type').value=r.txn_type;
+  ctEl('ct-cat').value=r.category||CT_CATS[0];
+  ctEl('ct-party').value=r.party||'';
+  ctEl('ct-amt').value=r.amount;
+  ctEl('ct-mode').value=r.mode||'Cash';
+  ctEl('ct-desc').value=r.description||'';
+  ctEl('ct-op').value=r.operator||'';
+  ctEl('ct-link').checked=false;ctEl('ct-link-wrap').style.display='none';ctLinkRefresh();
+  ctEl('ct-save-btn').textContent='Update '+(r.voucher_no||'Entry');
+  ctEl('ct-form-title').scrollIntoView({behavior:'smooth'});
 }
 async function ctDel(id){
   if(!isAdmin)return;
-  const r=ctRows.find(x=>x.id===id);
-  if(!confirm('Delete '+(r&&r.voucher_no||'this entry')+'? This cannot be undone.'))return;
-  try{await api('DELETE','cash_transactions?id=eq.'+id);toast('Entry deleted','ok');await ctLoad();}
-  catch(e){toast('Delete failed: '+String(e.message||e).slice(0,100),'err');}
+  const r=ctRows.find(x=>x.id===id),al=ctAllocsOf(id);
+  const lids=al.map(a=>a.ledger_entry_id).filter(x=>x);
+  const msg='Delete '+(r&&r.voucher_no||'this entry')+'?'+(al.length?(lids.length?'\n\nThis will also REMOVE the '+lids.length+' linked payment line(s) from the party ledger, so those bills become pending again.':'\n\nIts link to the cash bills will be removed, so those bills become pending again.'):'')+'\n\nThis cannot be undone.';
+  if(!confirm(msg))return;
+  try{
+    if(lids.length)await api('DELETE','ledger_entries?id=in.('+lids.join(',')+')');
+    await api('DELETE','cash_transactions?id=eq.'+id);   // allocations are removed automatically (on delete cascade)
+    toast('Entry deleted','ok');await ctLoad();
+    try{populateLedgerDropdowns();renderCustomerLedger();renderSupplierLedger();}catch(_){}
+  }catch(e){toast('Delete failed: '+String(e.message||e).slice(0,100),'err');}
 }
+
+/* ---------- Export / print ---------- */
 function ctExport(){
   const {list,opening}=ctFiltered();
   let bal=opening;
-  const data=[['Date','Voucher','Location','Type','Category','Party','Description','Mode','Cash IN','Cash OUT','Balance','Entered By']];
-  data.push(['','','','','','Opening Balance','','','','',opening,'']);
+  const data=[['Date','Voucher','Location','Type','Category','Party','Description','Linked Bills','Mode','Cash IN','Cash OUT','Balance','Entered By']];
+  data.push(['','','','','','Opening Balance','','','','','',opening,'']);
   list.forEach(r=>{const a=+r.amount||0;bal+=r.txn_type==='IN'?a:-a;
-    data.push([r.txn_date,r.voucher_no||'',r.location||'',r.txn_type,r.category||'',r.party||'',r.description||'',r.mode||'',r.txn_type==='IN'?a:'',r.txn_type==='OUT'?a:'',bal,r.operator||'']);});
+    data.push([r.txn_date,r.voucher_no||'',r.location||'',r.txn_type,r.category||'',r.party||'',r.description||'',ctBillsText(r.id),r.mode||'',r.txn_type==='IN'?a:'',r.txn_type==='OUT'?a:'',bal,r.operator||'']);});
   const ws=XLSX.utils.aoa_to_sheet(data),wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Cash Book');
   XLSX.writeFile(wb,'Cash_Book_'+today()+'.xlsx');
@@ -4572,15 +4822,16 @@ function ctPrint(){
   const {list,opening}=ctFiltered();
   let bal=opening,tin=0,tout=0;
   const rows=list.map(r=>{const a=+r.amount||0,i=r.txn_type==='IN';if(i){tin+=a;bal+=a;}else{tout+=a;bal-=a;}
-    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+'</td><td class="n">'+(i?a.toFixed(2):'')+'</td><td class="n">'+(!i?a.toFixed(2):'')+'</td><td class="n">'+bal.toFixed(2)+'</td></tr>';}).join('');
+    const bt=ctBillsText(r.id);
+    return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+(bt?'<br><small>Bills: '+ctEsc(bt)+'</small>':'')+'</td><td class="n">'+(i?a.toFixed(2):'')+'</td><td class="n">'+(!i?a.toFixed(2):'')+'</td><td class="n">'+bal.toFixed(2)+'</td></tr>';}).join('');
   const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print','err');return;}
   w.document.write('<html><head><title>Cash Book</title><style>body{font-family:system-ui,sans-serif;font-size:12px;padding:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5px 7px;text-align:left}th{background:#eee}.n{text-align:right}h2{margin:0 0 4px}</style></head><body>'+
-    '<h2>SGE-SSE — Cash Book ('+ctEsc(document.getElementById('ct-allloc').checked?'All Locations':currentLoc)+')</h2>'+
-    '<div style="margin-bottom:8px">Period: '+ctEsc(document.getElementById('ct-from').value||'Start')+' to '+ctEsc(document.getElementById('ct-to').value||'Today')+' &nbsp;|&nbsp; Opening: ₹'+opening.toFixed(2)+' &nbsp;|&nbsp; IN: ₹'+tin.toFixed(2)+' &nbsp;|&nbsp; OUT: ₹'+tout.toFixed(2)+' &nbsp;|&nbsp; <b>Closing: ₹'+bal.toFixed(2)+'</b></div>'+
+    '<h2>SGE-SSE — Cash Book ('+ctEsc(ctEl('ct-allloc').checked?'All Locations':currentLoc)+')</h2>'+
+    '<div style="margin-bottom:8px">Period: '+ctEsc(ctEl('ct-from').value||'Start')+' to '+ctEsc(ctEl('ct-to').value||'Today')+' &nbsp;|&nbsp; Opening: ₹'+opening.toFixed(2)+' &nbsp;|&nbsp; IN: ₹'+tin.toFixed(2)+' &nbsp;|&nbsp; OUT: ₹'+tout.toFixed(2)+' &nbsp;|&nbsp; <b>Closing: ₹'+bal.toFixed(2)+'</b></div>'+
     '<table><thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description</th><th>IN</th><th>OUT</th><th>Balance</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
   w.document.close();w.focus();setTimeout(()=>w.print(),300);
 }
-// refresh when admin logs in/out or location switches so Edit/Del buttons & scope update
+// keep Edit/Del buttons & location scope in sync
 (function(){
   const _rA=window.renderAll;
   if(typeof _rA==='function'){window.renderAll=function(){const r=_rA.apply(this,arguments);if(ctReady)ctRender();return r;};}
