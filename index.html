@@ -1152,6 +1152,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   </div>
   <div class="card" style="padding:12px 16px;border-left:4px solid #f9a825">
     <div class="card-title" style="margin-bottom:8px">🪙 Petty Cash <span style="font-size:11px;font-weight:400;color:#888">(separate book — not included in General Cash)</span></div>
+    <div id="ct-colwarn" style="display:none;margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fff8e1;border:1px solid #f9a825;font-size:12px;color:#7a5200"></div>
     <div class="grid4">
       <div class="metric"><div class="ml">Opening</div><div class="mv info" id="ct-p-open">₹0</div></div>
       <div class="metric"><div class="ml">Cash IN</div><div class="mv success" id="ct-p-in">₹0</div></div>
@@ -1166,7 +1167,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <div class="fg"><label>Date</label><input type="date" id="ct-date"/></div>
       <div class="fg"><label>Type</label>
         <select id="ct-type" onchange="ctTypeChanged()"><option value="OUT">Cash OUT (Expense / Payment)</option><option value="IN">Cash IN (Receipt / Top-up)</option></select></div>
-      <div class="fg"><label>Category</label><select id="ct-cat"></select></div>
+      <div class="fg"><label>Category</label><select id="ct-cat" onchange="ctCatChanged()"></select></div>
     </div>
     <div class="frow c3">
       <div class="fg"><label>Paid To / Received From (Party)</label><input id="ct-party" list="ct-partylist" autocomplete="off" placeholder="Type or pick party" onchange="ctLinkRefresh(true)"/><datalist id="ct-partylist"></datalist></div>
@@ -1176,7 +1177,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     </div>
     <div class="frow c3">
       <div class="fg"><label>Cash Book</label>
-        <select id="ct-book"><option value="GENERAL">💵 General Cash</option><option value="PETTY">🪙 Petty Cash</option></select></div>
+        <select id="ct-book"><option value="GENERAL">💵 General Cash</option><option value="PETTY">🪙 Petty Cash</option></select><div id="ct-cat-hint" style="font-size:11px;color:#7a5200;margin-top:4px"></div></div>
       <div class="fg" id="ct-upi-wrap" style="display:none"><label>UPI Holder Name *</label>
         <input id="ct-upi" placeholder="Name of the UPI account holder"/></div>
     </div>
@@ -1233,6 +1234,14 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <button class="btn sm" onclick="ctPrint()">🖨 Print</button>
     </div>
     <div id="ct-partysum" style="display:none;margin-bottom:14px"></div>
+    <div id="ct-movebar" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:#f5f8ff;border:1px solid #cfe0f5;border-radius:8px;font-size:12px">
+      <b>Admin:</b>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" style="width:auto" onchange="ctSelAll(this.checked)"/> Select all shown</label>
+      <button class="btn sm" onclick="ctMoveSel('PETTY')">➡ Move selected to 🪙 Petty Cash</button>
+      <button class="btn sm" onclick="ctMoveSel('GENERAL')">➡ Move selected to 💵 General Cash</button>
+      <button class="btn sm" onclick="ctMoveByExp()">⚡ Move old petty expenses (Tea, Transport, Fuel, Loading, Stationery, Repairs) to Petty</button>
+      <button class="btn sm" onclick="ctMoveByCat()">⚡ Move all “Petty Cash Top-up” entries to Petty</button>
+    </div>
     <div class="tw"><table>
       <thead><tr><th>Date</th><th>Voucher</th><th>Category</th><th>Party</th><th>Description / Linked Bills</th><th>Mode</th><th style="text-align:right">IN (₹)</th><th style="text-align:right">OUT (₹)</th><th style="text-align:right">Balance (₹)</th><th></th></tr></thead>
       <tbody id="ct-body"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody>
@@ -4661,6 +4670,35 @@ function ctFiltered(){
   });
   return {list,opening};
 }
+const CT_PETTY_EXP=['Transport / Auto','Loading / Unloading','Tea / Food','Fuel','Stationery / Office','Repairs & Maintenance'];
+const CT_GENERAL_CATS=['Purchase (Cash)','Sales Receipt (Cash)','Salary','Bank Deposit / Withdrawal'];
+function ctCatChanged(){
+  const cat=ctEl('ct-cat').value,type=ctEl('ct-type').value,hint=ctEl('ct-cat-hint');
+  hint.textContent='';
+  if(ctEditId)return;
+  if(type==='OUT'&&CT_PETTY_EXP.includes(cat)){ctEl('ct-book').value='PETTY';hint.textContent='🪙 Small expense — will be deducted from Petty Cash.';}
+  else if(CT_GENERAL_CATS.includes(cat)){ctEl('ct-book').value='GENERAL';}
+  else if(cat==='Petty Cash Top-up'){
+    if(type==='OUT'){ctEl('ct-book').value='GENERAL';hint.textContent='💵→🪙 Saved as Cash OUT from General Cash, and Petty Cash is credited automatically.';}
+    else{ctEl('ct-book').value='PETTY';hint.textContent='Cash IN to Petty Cash. (To also deduct it from General Cash, enter it as Cash OUT instead.)';}
+  }
+}
+function ctMoveByExp(){ctMoveIds(ctRows.filter(r=>r.txn_type==='OUT'&&CT_PETTY_EXP.includes(r.category)&&ctBookOf(r)!=='PETTY').map(r=>r.id),'PETTY');}
+function ctSelAll(on){document.querySelectorAll('#ct-body .ct-sel').forEach(c=>c.checked=on);}
+async function ctMoveIds(ids,book){
+  if(!isAdmin)return;
+  if(!ctColsOK){toast('Run the setup SQL first (book column missing)','err');return;}
+  if(!ids.length){toast('Nothing selected','info');return;}
+  if(!confirm('Move '+ids.length+' entr'+(ids.length===1?'y':'ies')+' to '+CT_BOOKNAME[book]+'?'))return;
+  try{
+    await api('PATCH','cash_transactions?id=in.('+ids.join(',')+')',{book});
+    toast(ids.length+' moved to '+CT_BOOKNAME[book]+' ✓','ok');
+    ctEl('ct-bookview').value=book;
+    await ctLoad();
+  }catch(e){toast('Move failed: '+String(e.message||e).slice(0,100),'err');}
+}
+function ctMoveSel(book){ctMoveIds([...document.querySelectorAll('#ct-body .ct-sel:checked')].map(c=>+c.value),book);}
+function ctMoveByCat(){ctMoveIds(ctRows.filter(r=>/petty/i.test(r.category||'')&&ctBookOf(r)!=='PETTY').map(r=>r.id),'PETTY');}
 function ctModeChanged(){ctEl('ct-upi-wrap').style.display=ctEl('ct-mode').value==='UPI'?'block':'none';}
 function ctBookViewChanged(){if(!ctEditId)ctEl('ct-book').value=ctEl('ct-bookview').value;ctRender();}
 const ctAllocsOf=id=>ctAllocs.filter(a=>a.cash_txn_id===id);
@@ -4675,7 +4713,7 @@ function ctRender(){
     if(isIn){tin+=a;bal+=a;}else{tout+=a;bal-=a;}
     const al=ctAllocsOf(r.id);
     const chips=al.length?'<div style="font-size:11px;color:#185FA5;margin-top:3px">🔗 '+al.map(x=>ctEsc(x.bill_no||'(no bill no)')+' '+ctFmt(x.amount)).join(' · ')+'</div>':'';
-    const acts=isAdmin?'<button class="btn sm" onclick="ctEdit('+r.id+')">Edit</button> <button class="btn sm dng" onclick="ctDel('+r.id+')">Del</button>':'';
+    const acts=isAdmin?'<input type="checkbox" class="ct-sel" value="'+r.id+'" style="width:auto"/> <button class="btn sm" onclick="ctEdit('+r.id+')">Edit</button> <button class="btn sm dng" onclick="ctDel('+r.id+')">Del</button>':'';
     return '<tr><td>'+ctEsc(ctDMY(r.txn_date))+'</td><td>'+ctEsc(r.voucher_no||'')+'</td><td>'+ctEsc(r.category||'')+'</td><td>'+ctEsc(r.party||'')+'</td><td>'+ctEsc(r.description||'')+chips+'</td><td>'+ctEsc(r.mode||'')+(r.mode==='UPI'&&r.upi_holder?'<div style="font-size:11px;color:#185FA5">'+ctEsc(r.upi_holder)+'</div>':'')+'</td>'+
       '<td style="text-align:right;color:#2e7d32;font-weight:600">'+(isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
       '<td style="text-align:right;color:#c62828;font-weight:600">'+(!isIn?a.toLocaleString('en-IN',{minimumFractionDigits:2}):'')+'</td>'+
@@ -4689,6 +4727,11 @@ function ctRender(){
     ctEl('ct-'+k+'-out').textContent=ctFmt(t.u);
     const c=ctEl('ct-'+k+'-close');c.textContent=ctFmt(t.c);c.className='mv '+(t.c<0?'danger':'success');
   });
+  ctEl('ct-movebar').style.display=isAdmin?'flex':'none';
+  const unset=ctRows.filter(r=>!r.book).length,cw=ctEl('ct-colwarn');
+  if(!ctColsOK){cw.style.display='block';cw.innerHTML='⚠ Petty Cash cannot be saved yet — run the <b>setup SQL</b> shown at the top of this page (adds the “book” column), then press Retry.';}
+  else if(unset>0){cw.style.display='block';cw.innerHTML='ℹ <b>'+unset+'</b> older entr'+(unset===1?'y has':'ies have')+' no cash book set, so they are counted in <b>General Cash</b>. '+(isAdmin?'Tick them in the table below and use <b>Move selected to Petty Cash</b>.':'Log in as admin to move them to Petty Cash.');}
+  else cw.style.display='none';
   ctEl('ct-book-title').innerHTML='Cash Book — <span style="color:#185FA5">'+ctEsc(CT_BOOKNAME[ctEl('ct-bookview').value])+'</span> <span style="font-size:11px;font-weight:400;color:#888">(running balance of this book only)</span>';
   if(ctEl('ct-partysum').style.display!=='none')ctRenderPartySum(list);
 }
@@ -4770,6 +4813,7 @@ function ctTypeChanged(){
   const t=ctEl('ct-type').value;
   ctEl('ct-src').value='LEDGER';
   if(ctEl('ct-link').checked)ctEl('ct-cat').value=t==='IN'?'Sales Receipt (Cash)':'Purchase (Cash)';
+  ctCatChanged();
   ctLinkRefresh(true);
 }
 function ctLinkToggle(){
@@ -4861,7 +4905,7 @@ function ctReset(){
   ctEl('ct-type').value='OUT';
   ctEl('ct-cat').selectedIndex=0;
   ['ct-party','ct-amt','ct-desc'].forEach(i=>ctEl(i).value='');
-  ctEl('ct-mode').value='Cash';ctEl('ct-upi').value='';ctEl('ct-book').value=ctEl('ct-bookview').value;ctModeChanged();
+  ctEl('ct-mode').value='Cash';ctEl('ct-upi').value='';ctEl('ct-book').value=ctEl('ct-bookview').value;ctEl('ct-cat-hint').textContent='';ctModeChanged();
   ctEl('ct-link').checked=false;ctEl('ct-link-wrap').style.display='block';ctEl('ct-src').value='LEDGER';
   ctLinkRefresh();
   ctEl('ct-save-btn').textContent='Save Entry';
@@ -4873,6 +4917,11 @@ async function ctSave(){
   if(!(amt>0)){toast('Enter a valid amount','err');return;}
   const book=ctEl('ct-book').value,mode=ctEl('ct-mode').value,upi=ctEl('ct-upi').value.trim();
   if(mode==='UPI'&&!upi){toast('Enter the UPI holder name','err');return;}
+  let topup='';
+  if(type==='OUT'&&!ctEditId){
+    const bal=ctScope(book).reduce((t,r)=>t+(r.txn_type==='IN'?1:-1)*(+r.amount||0),0);
+    if(amt>bal+0.005&&!confirm(CT_BOOKNAME[book]+' balance is only '+ctFmt(bal)+'.\nThis ₹'+amt+' will make it '+ctFmt(bal-amt)+'. Continue?'))return;
+  }
   if(op)localStorage.setItem('sge_operator',op);
   const linking=ctEl('ct-link').checked&&!ctEditId;
   const lt=ctLedgerType(),src=ctEl('ct-src').value;
@@ -4897,6 +4946,12 @@ async function ctSave(){
     }else{
       rec.voucher_no=ctVoucher(date,book);rec.location=locKey(currentLoc);
       const cash=(await api('POST','cash_transactions',rec))[0];
+      if(rec.category==='Petty Cash Top-up'&&type==='OUT'&&book==='GENERAL'&&ctColsOK){   // transfer: General OUT -> Petty IN
+        try{
+          topup=ctVoucher(date,'PETTY');
+          await api('POST','cash_transactions',{txn_date:date,txn_type:'IN',category:'Petty Cash Top-up',party:'Petty Cash',description:'Top-up from General Cash '+cash.voucher_no,amount:amt,mode:'Cash',operator:op,book:'PETTY',upi_holder:'',voucher_no:topup,location:rec.location});
+        }catch(e){topup='';toast('General Cash entry saved, but crediting Petty Cash failed: '+String(e.message||e).slice(0,80),'err');}
+      }
       if(linking&&src==='CB'){
         const arows=allocs.map(x=>({cash_txn_id:cash.id,voucher_no:cash.voucher_no,party:pname,ledger_type:'CASHBILL',ledger_entry_id:'',bill_no:x.b.billNo,amount:x.amt}));
         if(remain>0.005)arows.push({cash_txn_id:cash.id,voucher_no:cash.voucher_no,party:pname,ledger_type:'CASHBILL',ledger_entry_id:'',bill_no:'ON ACCOUNT',amount:remain});
@@ -4917,7 +4972,7 @@ async function ctSave(){
           toast('Could not link bills, nothing saved: '+String(e.message||e).slice(0,100),'err');return;
         }
         toast('Saved '+cash.voucher_no+' — split into '+lrows.length+' ledger line(s)','ok');
-      }else toast('Saved '+rec.voucher_no,'ok');
+      }else toast('Saved '+rec.voucher_no+(topup?' · Petty Cash credited '+topup:''),'ok');
     }
     ctEl('ct-bookview').value=book;
     ctReset();await ctLoad();
