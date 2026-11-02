@@ -2912,7 +2912,15 @@ function renderDupGroups(){
   if(!items.length){wrap.innerHTML='';document.getElementById('dupSummary').innerHTML='';return;}
   dupGroups=buildDupGroups();
   const extra=dupGroups.reduce((s,g)=>s+g.length-1,0);
-  document.getElementById('dupSummary').innerHTML='<b>'+dupGroups.length+'</b> duplicate group(s) found in '+currentLoc+' &nbsp;•&nbsp; <b>'+extra+'</b> extra item row(s) out of <b>'+items.length+'</b> total.';
+  document.getElementById('dupSummary').innerHTML='<b>'+dupGroups.length+'</b> duplicate group(s) found in '+currentLoc+' &nbsp;•&nbsp; <b>'+extra+'</b> extra item row(s) out of <b>'+items.length+'</b> total.'+
+    (dupGroups.length?'<div style="margin-top:10px;padding:10px 12px;background:#eef4ff;border:1px solid #c5d3e8;border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+      '<b style="font-size:13px">⚡ BULK MERGE</b>'+
+      '<button class="btn sm" onclick="dupBulkSel(true)">Select all</button>'+
+      '<button class="btn sm" onclick="dupBulkSel(false)">Select none</button>'+
+      '<label style="font-size:12px;color:#555;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="dupBulkCombine" checked> Add opening stock into kept item</label>'+
+      '<button class="btn primary" id="dupBulkBtn" onclick="bulkMergeDupGroups()">⚡ Bulk merge selected groups</button>'+
+      '<span id="dupBulkProg" style="font-size:12px;color:#185FA5;font-weight:600"></span>'+
+      '<div style="flex-basis:100%;font-size:11.5px;color:#666">Each selected group is merged into the row marked <b>Keep</b> (change the Keep radio in any group first if needed). Groups with different units are left unticked – tick them yourself if you are sure. <b>Download a backup first.</b></div></div>':'');
   if(!dupGroups.length){wrap.innerHTML='<div class="card" style="color:#888;font-size:13px">No exact duplicates found. Try "Ignore brand" above, or use manual merge below for spelling differences.</div>';return;}
   wrap.innerHTML=dupGroups.map((g,gi)=>{
     const unitsDiffer=new Set(g.map(i=>dupNorm(i.unit))).size>1;
@@ -2930,7 +2938,7 @@ function renderDupGroups(){
     }).join('');
     return '<div class="card">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">'+
-      '<div style="font-weight:700">'+(g[0].name||'(unnamed)')+' '+(g[0].brand?'· '+g[0].brand:'')+' <span class="badge" style="background:#fdecea;color:#c62828;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">'+g.length+' rows</span></div>'+
+      '<div style="font-weight:700"><input type="checkbox" class="dup-bulk-pick" data-gi="'+gi+'" '+(unitsDiffer?'':'checked')+' onchange="dupBulkCount()" title="Include in bulk merge" style="margin-right:8px;transform:scale(1.2)">'+(g[0].name||'(unnamed)')+' '+(g[0].brand?'· '+g[0].brand:'')+' <span class="badge" style="background:#fdecea;color:#c62828;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">'+g.length+' rows</span></div>'+
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
       '<label style="font-size:12px;color:#555;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="dupCombine_'+gi+'" checked> Add opening stock into kept item</label>'+
       '<button class="btn primary" id="dupMergeBtn_'+gi+'" onclick="mergeDupGroup('+gi+')">✅ Merge into selected</button>'+
@@ -2939,6 +2947,53 @@ function renderDupGroups(){
       '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8f9fb;color:#555;font-size:11px;text-transform:uppercase"><th style="padding:6px 8px;text-align:left">Keep</th><th style="padding:6px 8px;text-align:left">Name</th><th style="padding:6px 8px;text-align:left">Brand</th><th style="padding:6px 8px;text-align:left">Unit</th><th style="padding:6px 8px;text-align:left">Opening</th><th style="padding:6px 8px;text-align:left">Stock</th><th style="padding:6px 8px;text-align:left">Txns</th><th style="padding:6px 8px;text-align:left">ID</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       '</div>';
   }).join('');
+  dupBulkCount();
+}
+function dupBulkSel(v){document.querySelectorAll('.dup-bulk-pick').forEach(c=>c.checked=v);dupBulkCount();}
+function dupBulkCount(){
+  const n=document.querySelectorAll('.dup-bulk-pick:checked').length;
+  const b=document.getElementById('dupBulkBtn'); if(b) b.textContent='⚡ Bulk merge selected groups ('+n+')';
+}
+async function bulkMergeDupGroups(){
+  const plan=[...document.querySelectorAll('.dup-bulk-pick:checked')].map(c=>{
+    const gi=+c.dataset.gi, g=dupGroups[gi];
+    const sel=document.querySelector('input[name="dupkeep_'+gi+'"]:checked');
+    return {gi,g,keepId:sel?sel.value:null};
+  }).filter(p=>p.g&&p.keepId);
+  if(!plan.length){toast('Tick at least one group to merge','err');return;}
+  const combine=document.getElementById('dupBulkCombine').checked;
+  const rows=plan.reduce((s,p)=>s+p.g.length-1,0);
+  if(!confirm('BULK MERGE '+plan.length+' group(s)?\n\n- '+rows+' duplicate item row(s) will be DELETED\n- Their transactions move onto each group\'s Keep item\n'+(combine?'- Their opening stock is added into the kept item\n':'')+'\nHave you downloaded a backup? This cannot be undone from here.'))return;
+  const btn=document.getElementById('dupBulkBtn'), prog=document.getElementById('dupBulkProg');
+  btn.disabled=true;
+  let ok=0, fail=0, done=0;
+  dupLog('⚡ Bulk merge started: '+plan.length+' group(s), '+rows+' duplicate row(s).');
+  for(const p of plan){
+    done++;
+    prog.textContent='Merging '+done+' / '+plan.length+'…';
+    try{
+      const keepItem=p.g.find(i=>i.id===p.keepId);
+      const others=p.g.filter(i=>i.id!==p.keepId);
+      let addStock=0;
+      for(const o of others){
+        const tc=dupTxnCounts[o.id]||0;
+        if(tc>0){ await api('PATCH','transactions?item_id=eq.'+o.id,{item_id:p.keepId}); }
+        addStock+=parseFloat(o.opening_stock)||0;
+        await api('DELETE','items?id=eq.'+o.id);
+      }
+      if(combine&&addStock){
+        await api('PATCH','items?id=eq.'+p.keepId,{opening_stock:(parseFloat(keepItem.opening_stock)||0)+addStock});
+      }
+      ok++; dupLog('✅ '+(keepItem.name||'')+' — merged '+others.length+' duplicate(s).');
+    }catch(e){
+      fail++; dupLog('❌ Group "'+(p.g[0].name||'')+'" FAILED: '+e.message+' (skipped, continuing)');
+    }
+  }
+  prog.textContent='';
+  dupLog('⚡ Bulk merge finished: '+ok+' group(s) merged, '+fail+' failed.');
+  toast('Bulk merge done: '+ok+' merged'+(fail?', '+fail+' failed':''),fail?'err':'ok');
+  await load(true);
+  await scanDupGroups();
 }
 async function mergeDupGroup(gi){
   const g=dupGroups[gi];
