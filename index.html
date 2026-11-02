@@ -1654,6 +1654,22 @@ async function apiAll(path){
   return out;
 }
 
+// Same row can come back twice from paged requests (unstable ORDER on equal names) – keep one copy per id.
+function dedupeById(arr){
+  const seen=new Set(), out=[];
+  for(const r of arr){ if(r&&r.id!=null){ if(seen.has(r.id)) continue; seen.add(r.id); } out.push(r); }
+  if(out.length!==arr.length) console.warn('Removed '+(arr.length-out.length)+' repeated row(s) returned by the server');
+  return out;
+}
+// DELETE that proves a row was really removed (a blocked/RLS delete returns 200 + empty list and would otherwise look successful)
+async function delItemVerified(id){
+  const r=await fetch(SUPA_URL+'/rest/v1/items?id=eq.'+encodeURIComponent(id),{method:'DELETE',headers:{...H,Prefer:'return=representation'}});
+  const txt=await r.text();
+  if(!r.ok) throw new Error(txt);
+  const rows=txt?JSON.parse(txt):[];
+  if(!rows.length) throw new Error('Delete did nothing for item '+id+' (not found, or blocked by database permissions)');
+}
+
 function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+type;t.style.display='block';setTimeout(()=>t.style.display='none',3000);}
 function sync(msg){document.getElementById('syncBar').textContent=msg;}
 
@@ -1677,7 +1693,7 @@ async function saveCreditToSupabase(txnId,creditDays,isPaid){
 async function load(silent){
   if(!silent) sync('Syncing...');
   try{
-    const allItems=await apiAll('item_stock_fast?select=*&order=name');
+    const allItems=dedupeById(await apiAll('item_stock_fast?select=*&order=name,id'));
     const allTxns=await api('GET','transactions?select=id,item_id,type,qty,date,note,supplier,customer,operator,created_at,credit_days,is_paid&order=created_at.desc&limit=500');
     items=allItems.filter(i=>locKey(i.location)===locKey(currentLoc));
     const ids=new Set(items.map(i=>i.id));
@@ -2889,7 +2905,7 @@ async function scanDupGroups(){
   try{
     // Full, unpaginated fetch of every transaction's item_id (not just the app's recent-500 cache) —
     // uses the same apiAll() pagination fix as item loading, so nothing past row 1000 is missed here either.
-    dupAllTxnIds=await apiAll('transactions?select=id,item_id');
+    dupAllTxnIds=dedupeById(await apiAll('transactions?select=id,item_id&order=id'));
     dupTxnCounts={};
     dupAllTxnIds.forEach(t=>{dupTxnCounts[t.item_id]=(dupTxnCounts[t.item_id]||0)+1;});
     renderDupGroups();
@@ -2934,7 +2950,7 @@ function renderDupGroups(){
       return '<tr><td><input type="radio" name="dupkeep_'+gi+'" value="'+it.id+'" '+(it.id===best.id?'checked':'')+'></td>'+
         '<td>'+(it.name||'')+'</td><td>'+(it.brand||'--')+'</td><td>'+(it.unit||'--')+'</td>'+
         '<td>'+(it.opening_stock??0)+'</td><td>'+stock(it.id)+'</td><td>'+tc+'</td>'+
-        '<td style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#888" title="'+it.id+'">'+it.id.slice(0,8)+'…</td></tr>';
+        '<td style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#888" title="'+it.id+'">'+it.id.slice(0,8)+'…'+it.id.slice(-4)+'</td></tr>';
     }).join('');
     return '<div class="card">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">'+
@@ -2979,7 +2995,7 @@ async function bulkMergeDupGroups(){
         const tc=dupTxnCounts[o.id]||0;
         if(tc>0){ await api('PATCH','transactions?item_id=eq.'+o.id,{item_id:p.keepId}); }
         addStock+=parseFloat(o.opening_stock)||0;
-        await api('DELETE','items?id=eq.'+o.id);
+        await delItemVerified(o.id);
       }
       if(combine&&addStock){
         await api('PATCH','items?id=eq.'+p.keepId,{opening_stock:(parseFloat(keepItem.opening_stock)||0)+addStock});
@@ -3011,7 +3027,7 @@ async function mergeDupGroup(gi){
       const tc=dupTxnCounts[o.id]||0;
       if(tc>0){await api('PATCH','transactions?item_id=eq.'+o.id,{item_id:keepId});dupLog('Moved '+tc+' transaction(s) from '+o.id+' → '+keepId);}
       addStock+=parseFloat(o.opening_stock)||0;
-      await api('DELETE','items?id=eq.'+o.id);
+      await delItemVerified(o.id);
       dupLog('Deleted duplicate item '+o.id+' ("'+o.name+'")');
     }
     if(combineStock&&addStock){
@@ -3039,11 +3055,11 @@ function renderDupManual(){
   el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8f9fb;color:#555;font-size:11px;text-transform:uppercase"><th style="padding:6px 8px;text-align:left">Pick</th><th style="padding:6px 8px;text-align:left">Name</th><th style="padding:6px 8px;text-align:left">Brand</th><th style="padding:6px 8px;text-align:left">Unit</th><th style="padding:6px 8px;text-align:left">Opening</th><th style="padding:6px 8px;text-align:left">Stock</th><th style="padding:6px 8px;text-align:left">Txns</th><th style="padding:6px 8px;text-align:left">ID</th></tr></thead><tbody>'+
     matches.map(it=>{
       const tc=dupTxnCounts[it.id]||0;
-      return '<tr><td><input type="checkbox" class="dup-manual-pick" value="'+it.id+'"></td><td>'+it.name+'</td><td>'+(it.brand||'--')+'</td><td>'+(it.unit||'--')+'</td><td>'+(it.opening_stock??0)+'</td><td>'+stock(it.id)+'</td><td>'+tc+'</td><td style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#888" title="'+it.id+'">'+it.id.slice(0,8)+'…</td></tr>';
+      return '<tr><td><input type="checkbox" class="dup-manual-pick" value="'+it.id+'"></td><td>'+it.name+'</td><td>'+(it.brand||'--')+'</td><td>'+(it.unit||'--')+'</td><td>'+(it.opening_stock??0)+'</td><td>'+stock(it.id)+'</td><td>'+tc+'</td><td style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#888" title="'+it.id+'">'+it.id.slice(0,8)+'…'+it.id.slice(-4)+'</td></tr>';
     }).join('')+'</tbody></table>'+
     '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
     '<select id="dupManualKeep" style="padding:6px;border-radius:6px;border:1px solid #ddd;font-size:12px"><option value="">-- choose which one to KEEP --</option>'+
-    matches.map(it=>'<option value="'+it.id+'">'+it.name+' ('+(it.brand||'--')+') '+it.id.slice(0,8)+'…</option>').join('')+
+    matches.map(it=>'<option value="'+it.id+'">'+it.name+' ('+(it.brand||'--')+') '+it.id.slice(0,8)+'…'+it.id.slice(-4)+'</option>').join('')+
     '</select><button class="btn primary" onclick="manualDupMerge()">✅ Merge checked items into chosen one</button></div>';
 }
 async function manualDupMerge(){
@@ -3061,7 +3077,7 @@ async function manualDupMerge(){
       const tc=dupTxnCounts[oid]||0;
       if(tc>0){await api('PATCH','transactions?item_id=eq.'+oid,{item_id:keepId});dupLog('Moved '+tc+' transaction(s) from '+oid+' → '+keepId);}
       addStock+=parseFloat(o.opening_stock)||0;
-      await api('DELETE','items?id=eq.'+oid);
+      await delItemVerified(oid);
       dupLog('Deleted duplicate item '+oid+' ("'+o.name+'")');
     }
     if(addStock){
@@ -3118,7 +3134,7 @@ let trItems=[]; // items from SOURCE location
 async function loadTransferItems(){
   const fromLoc=document.getElementById('tr-from').value;
   try{
-    const all=await apiAll('item_stock_fast?select=*&order=name');
+    const all=dedupeById(await apiAll('item_stock_fast?select=*&order=name,id'));
     trItems=all.filter(i=>(i.location||'GODOWN')===fromLoc);
     // fill brands
     const brands=[...new Set(trItems.map(i=>bK(i.brand)))].sort();
