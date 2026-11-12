@@ -1195,7 +1195,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
           <select id="ct-src" onchange="ctLinkRefresh(true)"><option value="CB">💵 Cash Bills (Quotation module)</option><option value="LEDGER">📒 Party Ledger bills (Customer / Supplier)</option></select></div>
         <div id="ct-link-info" style="font-size:12px;color:#555;margin-bottom:8px"></div>
         <div class="tw"><table>
-          <thead><tr><th>Bill No</th><th>Bill Date</th><th>Due</th><th style="text-align:right">Bill Amt</th><th style="text-align:right">Pending</th><th style="text-align:right;width:150px">Pay now (₹)</th></tr></thead>
+          <thead><tr><th>Bill No</th><th>Bill Date</th><th>Due</th><th style="text-align:right">Bill Amt</th><th style="text-align:right">Pending</th><th style="text-align:right;width:150px">Pay now (₹)</th><th style="text-align:right;width:150px" title="Post-bill discount: closes the balance without cash">Discount (₹)</th></tr></thead>
           <tbody id="ct-link-body"></tbody>
         </table></div>
         <div id="ct-link-sum" style="margin-top:10px;font-size:13px;font-weight:600"></div>
@@ -4618,7 +4618,7 @@ drop policy if exists "cash_txn_all" on public.cash_transactions;
 create policy "cash_txn_all" on public.cash_transactions for all to anon using (true) with check (true);
 drop policy if exists "cash_alloc_all" on public.cash_allocations;
 create policy "cash_alloc_all" on public.cash_allocations for all to anon using (true) with check (true);`;
-let ctColsOK=true,ctPendBal=0,ctCBRows=[],ctRETRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
+let ctColsOK=true,ctPendBal=0,ctCBRows=[],ctRETRows=[],ctDisc={},ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
 const ctEl=id=>document.getElementById(id);
 const ctBookOf=r=>r&&r.book==='PETTY'?'PETTY':'GENERAL';
 const CT_BOOKNAME={GENERAL:'General Cash',PETTY:'Petty Cash'};
@@ -5002,27 +5002,44 @@ function ctLinkRefresh(autosplit){
   if(src==='CB'&&!ctCBOK){ctPend=[];ctAlloc={};info.innerHTML='<span style="color:#c62828">Could not read cash bills from the Quotation module: '+ctEsc(ctCBErr)+'</span>';tb.innerHTML='';ctEl('ct-link-sum').innerHTML='';return;}
   const r=src==='CB'?ctPendingCB(party):ctPending(party,type);ctPend=r.bills;ctPendBal=r.balance;
   const keep={};ctPend.forEach(b=>{if(ctAlloc[b.key]!=null)keep[b.key]=Math.min(ctAlloc[b.key],b.pending);});ctAlloc=keep;
+  const keepD={};ctPend.forEach(b=>{if(ctDisc[b.key]!=null)keepD[b.key]=Math.min(ctDisc[b.key],b.pending);});ctDisc=keepD;
   if(src==='CB')info.innerHTML='💵 Cash Bills (Quotation module) — <b>'+ctEsc(r.name)+'</b> · Pending on cash bills: <b>'+ctFmt(r.balance)+'</b> · Bills: <b>'+r.bills.length+'</b>'+(r.found?'':' <span style="color:#c62828">(no cash bills found for this name in Quotation — check the spelling)</span>');
   else info.innerHTML=(type==='CUSTOMER'?'👥 Customer Ledger (cash bills + other bills)':'📦 Supplier ledger')+' — <b>'+ctEsc(r.name)+'</b> · Remaining balance: <b>'+ctFmt(r.balance)+'</b> · Pending bills: <b>'+r.bills.length+'</b>'+(r.found?'':' <span style="color:#c62828">(no ledger entries found for this name — check the spelling)</span>');
   if(autosplit)ctAutoSplit(true);else ctDrawAlloc();
 }
 function ctDrawAlloc(){
   const tb=ctEl('ct-link-body'),t=today();
-  if(!ctPend.length){tb.innerHTML='<tr><td colspan="6" class="empty" style="padding:14px">No pending bills for this party.</td></tr>';ctLinkSummary();return;}
+  if(!ctPend.length){tb.innerHTML='<tr><td colspan="7" class="empty" style="padding:14px">No pending bills for this party.</td></tr>';ctLinkSummary();return;}
   tb.innerHTML=ctPend.map((b,i)=>{
     const od=b.due&&b.due<t;
     return '<tr><td><b>'+ctEsc(b.billNo||'(no bill no)')+'</b>'+(b.custName?'<div style="font-size:11px;color:#888">'+ctEsc(b.custName)+(b.status?' · '+ctEsc(b.status):'')+'</div>':'')+'</td><td>'+ctEsc(ctDMY(b.date))+'</td><td style="color:'+(od?'#c62828':'#555')+'">'+(b.due?ctEsc(ctDMY(b.due))+(od?' ⚠':''):'--')+'</td>'+
       '<td style="text-align:right">'+ctFmt(b.amount)+'</td><td style="text-align:right;font-weight:600">'+ctFmt(b.pending)+'</td>'+
-      '<td style="text-align:right;white-space:nowrap"><input type="number" id="ct-al-'+i+'" min="0" max="'+b.pending+'" step="0.01" value="'+(ctAlloc[b.key]||'')+'" oninput="ctAllocSet('+i+',this)" style="width:100px;text-align:right;display:inline-block"/> <button type="button" class="btn sm" onclick="ctAllocFull('+i+')" title="Fill remaining cash up to this bill\'s pending">Full</button></td></tr>';
+      '<td style="text-align:right;white-space:nowrap"><input type="number" id="ct-al-'+i+'" min="0" max="'+b.pending+'" step="0.01" value="'+(ctAlloc[b.key]||'')+'" oninput="ctAllocSet('+i+',this)" style="width:100px;text-align:right;display:inline-block"/> <button type="button" class="btn sm" onclick="ctAllocFull('+i+')" title="Fill remaining cash up to this bill\'s pending">Full</button></td>'+
+      '<td style="text-align:right;white-space:nowrap"><input type="number" id="ct-di-'+i+'" min="0" max="'+b.pending+'" step="0.01" value="'+(ctDisc[b.key]||'')+'" oninput="ctDiscSet('+i+',this)" style="width:90px;text-align:right;display:inline-block;background:#fff8e1"/> <button type="button" class="btn sm" onclick="ctDiscRest('+i+')" title="Give whatever is still pending on this bill (after the cash above) as discount — closes the bill">Rest</button></td></tr>';
   }).join('');
   ctLinkSummary();
 }
 function ctAllocSet(i,inp){
   const b=ctPend[i];if(!b)return;
   let v=parseFloat(inp.value)||0;
-  if(v>b.pending){v=b.pending;inp.value=v;}
+  const cap=ctR2(b.pending-(ctDisc[b.key]||0));
+  if(v>cap){v=Math.max(0,cap);inp.value=v||'';}
   if(v<0){v=0;inp.value='';}
   ctAlloc[b.key]=ctR2(v);ctLinkSummary();
+}
+function ctDiscTotal(){return ctR2(ctPend.reduce((s,b)=>s+(ctDisc[b.key]||0),0));}
+function ctDiscSet(i,inp){
+  const b=ctPend[i];if(!b)return;
+  let v=parseFloat(inp.value)||0;
+  const cap=ctR2(b.pending-(ctAlloc[b.key]||0));
+  if(v>cap){v=Math.max(0,cap);inp.value=v||'';}
+  if(v<0){v=0;inp.value='';}
+  ctDisc[b.key]=ctR2(v);ctLinkSummary();
+}
+function ctDiscRest(i){
+  const b=ctPend[i];if(!b)return;
+  const v=ctR2(Math.max(0,b.pending-(ctAlloc[b.key]||0)));
+  ctDisc[b.key]=v;ctEl('ct-di-'+i).value=v||'';ctLinkSummary();
 }
 function ctAllocTotal(){return ctR2(ctPend.reduce((s,b)=>s+(ctAlloc[b.key]||0),0));}
 function ctAllocFull(i){
@@ -5034,23 +5051,29 @@ function ctAllocFull(i){
 }
 function ctAutoSplit(noToast){
   let rem=parseFloat(ctEl('ct-amt').value)||0;
-  ctAlloc={};
+  ctAlloc={};ctDisc={};
   ctPend.forEach(b=>{const t=ctR2(Math.min(rem,b.pending));if(t>0){ctAlloc[b.key]=t;rem=ctR2(rem-t);}});
   ctDrawAlloc();
   if(!noToast&&!(parseFloat(ctEl('ct-amt').value)>0))toast('Enter the cash amount first','info');
 }
-function ctClearAlloc(){ctAlloc={};ctDrawAlloc();}
+function ctClearAlloc(){ctAlloc={};ctDisc={};ctDrawAlloc();}
 function ctLinkSummary(){
   const el=ctEl('ct-link-sum');if(!el||!ctEl('ct-link').checked||!ctAllocOK)return;
-  const amt=parseFloat(ctEl('ct-amt').value)||0,al=ctAllocTotal(),rem=ctR2(amt-al);
-  let msg='Cash ₹'+ctFmt(amt).slice(1)+' &nbsp;|&nbsp; Given to bills ₹'+ctFmt(al).slice(1)+' &nbsp;|&nbsp; ';
+  const amt=parseFloat(ctEl('ct-amt').value)||0,al=ctAllocTotal(),dt=ctDiscTotal(),rem=ctR2(amt-al);
+  let msg='Cash ₹'+ctFmt(amt).slice(1)+' &nbsp;|&nbsp; Given to bills ₹'+ctFmt(al).slice(1)+(dt>0?' &nbsp;|&nbsp; <span style="color:#8a5a00;font-weight:700">Discount ₹'+ctFmt(dt).slice(1)+'</span>':'')+' &nbsp;|&nbsp; ';
   if(rem<-0.005)msg+='<span style="color:#c62828">Over-allocated by ₹'+ctFmt(-rem).slice(1)+'</span>';
   else if(rem>0.005)msg+='<span style="color:#e65100">Unallocated ₹'+ctFmt(rem).slice(1)+' (will be saved as advance / On Account)</span>';
   else msg+='<span style="color:#2e7d32">Fully allocated ✓</span>';
-  msg+='<div style="margin-top:4px;font-weight:700;color:#185FA5">Party remaining before: ₹'+ctFmt(ctPendBal).slice(1)+' &nbsp;→&nbsp; after this receipt: ₹'+ctFmt(ctR2(ctPendBal-al)).slice(1)+'</div>';
+  msg+='<div style="margin-top:4px;font-weight:700;color:#185FA5">Party remaining before: ₹'+ctFmt(ctPendBal).slice(1)+' &nbsp;→&nbsp; after this receipt: ₹'+ctFmt(ctR2(ctPendBal-al-dt)).slice(1)+'</div>';
   el.innerHTML=msg;
 }
 
+/* Post-bill discount: customer bargains after the bill is made (e.g. bill 24,380 -> pays 24,000). The balance is closed with a
+   DISCOUNT credit entry on that bill in the ledger, so it never stays pending and the cash book stays equal to real cash received. */
+function ctDiscRows(pname,lt,date,voucher){
+  return ctPend.map(b=>({b,d:ctR2(ctDisc[b.key]||0)})).filter(x=>x.d>0.004).map(x=>({party_name:pname,ledger_type:lt,date,place:'',bill_no:x.b.billNo,
+    remarks:'DISCOUNT | Post-bill discount allowed'+(voucher?' with '+voucher:'')+' (bill ₹'+fmt(x.b.amount)+')',debit:0,credit:x.d,due_date:null}));
+}
 /* ---------- Voucher / reset / save ---------- */
 function ctVoucher(d,book){
   const p=(book==='PETTY'?'PC-':'CV-')+d.replace(/-/g,'').slice(2)+'-';
@@ -5058,7 +5081,7 @@ function ctVoucher(d,book){
   return p+String(mx+1).padStart(3,'0');
 }
 function ctReset(){
-  ctEditId=null;ctAlloc={};ctPend=[];
+  ctEditId=null;ctAlloc={};ctDisc={};ctPend=[];
   ctEl('ct-date').value=today();
   ctEl('ct-type').value='OUT';
   ctEl('ct-cat').selectedIndex=0;
@@ -5072,7 +5095,8 @@ async function ctSave(){
   const date=ctEl('ct-date').value,amt=ctR2(parseFloat(ctEl('ct-amt').value));
   const type=ctEl('ct-type').value,op=ctEl('ct-op').value.trim(),party=ctEl('ct-party').value.trim();
   if(!date){toast('Select a date','err');return;}
-  if(!(amt>0)){toast('Enter a valid amount','err');return;}
+  const discOnly=ctEl('ct-link').checked&&!ctEditId&&ctDiscTotal()>0;
+  if(!(amt>0)&&!discOnly){toast('Enter a valid amount','err');return;}
   const book=ctEl('ct-book').value,mode=ctEl('ct-mode').value,upi=ctEl('ct-upi').value.trim();
   if(mode==='UPI'&&!upi){toast('Enter the UPI holder name','err');return;}
   let topup='';
@@ -5093,6 +5117,20 @@ async function ctSave(){
     if(tot>amt+0.005){toast('Bills total ₹'+tot+' is more than the cash amount','err');return;}
     remain=ctR2(amt-tot);
     if(remain>0.005&&!confirm(allocs.length?'₹'+remain+' is not given to any bill.\n\nKeep it as an advance (On Account) for this party?':'No bill selected.\n\nKeep the full ₹'+amt+' as an advance (On Account) for this party?'))return;
+  }
+  const discRows=linking?ctDiscRows(pname,lt,date,''):[];
+  if(discRows.length){
+    const dTot=ctR2(discRows.reduce((t,r)=>t+r.credit,0));
+    if(!confirm('Allow DISCOUNT of ₹'+dTot+' on '+discRows.length+' bill(s)?\n\n'+discRows.map(r=>'• '+r.bill_no+' : ₹'+r.credit).join('\n')+'\n\nThis balance will be closed in the ledger without any cash.'))return;
+  }
+  if(linking&&!(amt>0)){   // discount only — no cash received now
+    try{
+      await api('POST','ledger_entries',discRows);
+      toast('Discount ₹'+ctR2(discRows.reduce((t,r)=>t+r.credit,0))+' posted to '+pname+'’s ledger','ok');
+      ctReset();await ctLoad();
+      try{populateLedgerDropdowns();renderCustomerLedger();renderSupplierLedger();}catch(_){}
+    }catch(e){toast('Could not post discount: '+String(e.message||e).slice(0,100),'err');}
+    return;
   }
   const rec={txn_date:date,txn_type:type,category:ctEl('ct-cat').value,party:linking?pname:party,description:ctEl('ct-desc').value.trim(),
     amount:amt,mode,operator:op,book,upi_holder:mode==='UPI'?upi:''};
@@ -5131,6 +5169,10 @@ async function ctSave(){
         }
         toast('Saved '+cash.voucher_no+' — split into '+lrows.length+' ledger line(s)','ok');
       }else toast('Saved '+rec.voucher_no+(topup?' · Petty Cash credited '+topup:''),'ok');
+      if(linking&&discRows.length){
+        try{await api('POST','ledger_entries',discRows.map(r=>({...r,remarks:r.remarks.replace('allowed','allowed with '+cash.voucher_no)})));toast('Discount posted: ₹'+ctR2(discRows.reduce((t,r)=>t+r.credit,0)),'ok');}
+        catch(e){toast('Receipt saved, but the discount entry failed: '+String(e.message||e).slice(0,80)+' — add it from Customer Ledger → Quick Entry','err');}
+      }
     }
     ctEl('ct-bookview').value=book;
     ctReset();await ctLoad();
