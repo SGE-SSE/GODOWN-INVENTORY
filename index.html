@@ -4618,7 +4618,7 @@ drop policy if exists "cash_txn_all" on public.cash_transactions;
 create policy "cash_txn_all" on public.cash_transactions for all to anon using (true) with check (true);
 drop policy if exists "cash_alloc_all" on public.cash_allocations;
 create policy "cash_alloc_all" on public.cash_allocations for all to anon using (true) with check (true);`;
-let ctColsOK=true,ctPendBal=0,ctCBRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
+let ctColsOK=true,ctPendBal=0,ctCBRows=[],ctRETRows=[],ctCBOK=true,ctCBErr='',ctRows=[],ctAllocs=[],ctAllocOK=true,ctEditId=null,ctReady=false,ctPend=[],ctAlloc={},ctPSList=[];
 const ctEl=id=>document.getElementById(id);
 const ctBookOf=r=>r&&r.book==='PETTY'?'PETTY':'GENERAL';
 const CT_BOOKNAME={GENERAL:'General Cash',PETTY:'Petty Cash'};
@@ -4652,6 +4652,18 @@ function ctCanon(name){
   const pm=(typeof parties!=='undefined'?parties:[]).find(x=>ctNorm(x.name)===n);if(pm)return pm.name;
   return String(name||'').trim();
 }
+/* A Customer Return (credit note) is split per original Cash Bill (items remember their source bill),
+   so each bill's pending amount is reduced by exactly what was returned from it. Items with no bill
+   are credited under the credit-note number itself. GST / round-off are shared in proportion. */
+function ctRetAlloc(r){
+  const net=ctR2(r.net_payable), its=Array.isArray(r.items)?r.items:[], g={}; let tot=0;
+  its.forEach(it=>{const a=parseFloat(String(it.amount==null?'':it.amount).replace(/[^\d.-]/g,''))||0;const b=String(it.srcBill||'').trim()||r.doc_no;g[b]=(g[b]||0)+a;tot+=a;});
+  const keys=Object.keys(g);
+  if(!keys.length||tot<=0)return net>0?[{bill:r.doc_no,amt:net}]:[];
+  const out=[];let run=0;
+  keys.forEach((b,i)=>{const amt=(i===keys.length-1)?ctR2(net-run):ctR2(net*g[b]/tot);run=ctR2(run+amt);if(amt>0.004)out.push({bill:b,amt});});
+  return out;
+}
 /* What is missing between Quotation cash bills and the Customer Ledger */
 function ctCBSyncPlan(party){
   const plan={add:[],upd:[],del:[],mig:[]};
@@ -4671,12 +4683,25 @@ function ctCBSyncPlan(party){
       else if(!cancelled&&Math.abs((+ex.debit||0)-amt)>0.005)plan.upd.push({id:ex.id,debit:amt});
     }
   });
+  ctRETRows.forEach(r=>{
+    if(!r.doc_no||!r.cust_name)return;
+    if(party&&!ctNameMatch(r.cust_name,party))return;
+    const cancelled=(r.doc_status||'Quoted')==='Cancelled', n=ctNorm(r.cust_name), dn=ctNorm(r.doc_no);
+    const want=cancelled?[]:ctRetAlloc(r);
+    const mine=ledgerEntries.filter(e=>e.ledger_type==='CUSTOMER'&&ctNorm(e.party_name)===n&&String(e.remarks||'').startsWith('RET-SYNC')&&ctNorm(e.remarks).includes(dn)&&(+e.credit||0)>0);
+    want.forEach(w=>{
+      const ex=mine.find(e=>ctNorm(e.bill_no)===ctNorm(w.bill));
+      if(!ex)plan.add.push({party_name:ctCanon(r.cust_name),ledger_type:'CUSTOMER',date:r.doc_date||today(),place:'',bill_no:w.bill,remarks:'RET-SYNC | Credit Note '+r.doc_no+' | '+(w.bill===r.doc_no?'Return without cash bill':'Return against '+w.bill),debit:0,credit:w.amt,due_date:null});
+      else if(Math.abs((+ex.credit||0)-w.amt)>0.005)plan.upd.push({id:ex.id,credit:w.amt});
+    });
+    mine.filter(e=>!want.some(w=>ctNorm(w.bill)===ctNorm(e.bill_no))).forEach(e=>plan.del.push(e.id));
+  });
   plan.mig=ctAllocs.filter(a=>a.ledger_type==='CASHBILL'&&(!party||ctNameMatch(a.party,party)));
   return plan;
 }
 async function ctSyncBills(plan,withDel){
   for(let k=0;k<plan.add.length;k+=200)await api('POST','ledger_entries',plan.add.slice(k,k+200));
-  for(const u of plan.upd)await api('PATCH','ledger_entries?id=eq.'+u.id,{debit:u.debit});
+  for(const u of plan.upd)await api('PATCH','ledger_entries?id=eq.'+u.id,u.credit!==undefined?{credit:u.credit}:{debit:u.debit});
   if(withDel&&plan.del.length)await api('DELETE','ledger_entries?id=in.('+plan.del.join(',')+')');
   for(const a of plan.mig){   // earlier cash receipts that were only saved in the cash book -> move into the ledger
     const cash=ctRows.find(x=>x.id===a.cash_txn_id);
@@ -4690,12 +4715,12 @@ function ctRenderSyncBar(){
   const el=ctEl('ct-syncbar');if(!el)return;
   if(!ctCBOK){el.innerHTML='<span style="color:#c62828">⚠ Could not read cash bills from the Quotation module: '+ctEsc(ctCBErr)+'</span>';return;}
   const pl=ctCBSyncPlan('');const n=pl.add.length+pl.upd.length+pl.del.length+pl.mig.length;
-  el.innerHTML=n?'<span>🔗 <b>Cash Bills ↔ Customer Ledger:</b> <span style="color:#e65100;font-weight:700">'+n+' item(s) not yet linked</span> ('+pl.add.length+' new bill(s)'+(pl.upd.length?', '+pl.upd.length+' amount change(s)':'')+(pl.del.length?', '+pl.del.length+' cancelled':'')+(pl.mig.length?', '+pl.mig.length+' earlier receipt(s)':'')+')</span><button class="btn sm orange" onclick="ctSyncAll()">🔄 Link all cash bills to Customer Ledger</button>':'<span>✅ <b>All cash bills are linked to the Customer Ledger.</b> New payments saved here are deducted from the ledger automatically.</span>';
+  el.innerHTML=n?'<span>🔗 <b>Cash Bills &amp; Credit Notes ↔ Customer Ledger:</b> <span style="color:#e65100;font-weight:700">'+n+' item(s) not yet linked</span> ('+pl.add.length+' new bill / credit note entr'+(pl.add.length===1?'y':'ies')+(pl.upd.length?', '+pl.upd.length+' amount change(s)':'')+(pl.del.length?', '+pl.del.length+' cancelled':'')+(pl.mig.length?', '+pl.mig.length+' earlier receipt(s)':'')+')</span><button class="btn sm orange" onclick="ctSyncAll()">🔄 Link all cash bills &amp; credit notes to Customer Ledger</button>':'<span>✅ <b>All cash bills are linked to the Customer Ledger.</b> New payments saved here are deducted from the ledger automatically.</span>';
 }
 async function ctSyncAll(){
   const pl=ctCBSyncPlan('');
   if(!(pl.add.length+pl.upd.length+pl.del.length+pl.mig.length)){toast('Everything is already linked','info');return;}
-  if(!confirm('Link Quotation cash bills to the Customer Ledger?\n\n• '+pl.add.length+' cash bill(s) will be ADDED as debit entries\n• '+pl.upd.length+' bill amount(s) updated\n• '+pl.del.length+' cancelled bill(s) removed (only if unpaid)\n• '+pl.mig.length+' earlier cash receipt line(s) moved into the ledger\n\nBills already present in the ledger (same party + bill no) are skipped.'))return;
+  if(!confirm('Link Quotation cash bills and customer-return credit notes to the Customer Ledger?\n\n• '+pl.add.length+' entr'+(pl.add.length===1?'y':'ies')+' will be ADDED (cash bills as DEBIT, customer-return credit notes as CREDIT)\n• '+pl.upd.length+' bill amount(s) updated\n• '+pl.del.length+' cancelled bill(s) removed (only if unpaid)\n• '+pl.mig.length+' earlier cash receipt line(s) moved into the ledger\n\nBills already present in the ledger (same party + bill no) are skipped.'))return;
   try{
     await ctSyncBills(pl,true);
     toast('Cash bills linked to Customer Ledger ✓','ok');
@@ -4705,10 +4730,10 @@ async function ctSyncAll(){
 }
 async function ctLoadCB(){
   const H={apikey:CT_QKEY,Authorization:'Bearer '+CT_QKEY};
-  async function pull(cols){
+  async function pull(cols,dt){
     let out=[],from=0;
     while(true){
-      const r=await fetch(CT_QURL+'/rest/v1/quotations?select='+cols+'&doc_type=eq.CB&order=doc_date.asc,created_at.asc',{headers:{...H,Range:from+'-'+(from+999)}});
+      const r=await fetch(CT_QURL+'/rest/v1/quotations?select='+cols+'&doc_type=eq.'+(dt||'CB')+'&order=doc_date.asc,created_at.asc',{headers:{...H,Range:from+'-'+(from+999)}});
       if(!r.ok)throw new Error(await r.text());
       const pg=await r.json();out=out.concat(pg);if(pg.length<1000)break;from+=1000;
     }
@@ -4719,6 +4744,11 @@ async function ctLoadCB(){
     catch(e){if(/doc_status/i.test(String(e.message||e)))ctCBRows=await pull('id,doc_no,doc_date,cust_name,net_payable');else throw e;}
     ctCBOK=true;ctCBErr='';
   }catch(e){ctCBRows=[];ctCBOK=false;ctCBErr=String(e.message||e).slice(0,120);}
+  /* Customer Returns (credit notes) from the Quotation module — they go into the Customer Ledger as CREDIT entries */
+  try{
+    try{ctRETRows=await pull('id,doc_no,doc_date,cust_name,net_payable,doc_status,items','RET');}
+    catch(e){if(/doc_status/i.test(String(e.message||e)))ctRETRows=await pull('id,doc_no,doc_date,cust_name,net_payable,items','RET');else throw e;}
+  }catch(e){ctRETRows=[];}
 }
 function ctPendingCB(party){
   const p=ctNorm(party);
