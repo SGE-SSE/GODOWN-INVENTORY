@@ -5680,5 +5680,47 @@ window.addEventListener('load',()=>{setTimeout(()=>{try{$('cbp-sql').textContent
 })();
 </script>
 
+<style>
+body:not(.is-admin) #cbp-today button,body:not(.is-admin) #cbp-fetch-res button,body:not(.is-admin) #page-cbpending #cbp-table td button{display:none!important}
+</style>
+<script>
+/* ===== ADMIN-ONLY ENTRIES =====
+   Everyone can VIEW. Only after Admin Login (PIN) can anyone add / edit / delete / sync / record payments or follow-ups. */
+(function(){
+const LOUD=['addItem','delItem','delItemVerified','saveEdit','bulkAddColorItems','submitQ','saveEditTxn','deleteTxn','bulkMergeDupGroups','mergeDupGroup','manualDupMerge','doTransfer','submitDmgQueue',
+  'saveParty','doRenameParty','openLedgerEntry','saveLedgerEntry','deleteLedgerEntry','saveManualEntry',
+  'ctSave','ctDel','ctEdit','ctMoveIds','ctSyncAll','cbpSaveModal','cbpEdit','cbpWA','cbpWAParty','cbpReceive','cbpReceiveParty','cbpFetchToForm'];
+const SILENT=['autoSaveParty','saveCreditToSupabase','ctSyncBills'];
+function wrap(n,loud){
+  const f=window[n];if(typeof f!=='function')return;
+  window[n]=function(){
+    if(!isAdmin){if(loud)toast('🔐 Admin access required – please Admin Login first','err');return loud?undefined:Promise.resolve();}
+    return f.apply(this,arguments);
+  };
+}
+LOUD.forEach(n=>wrap(n,true));SILENT.forEach(n=>wrap(n,false));
+
+function applyRole(){
+  document.body.classList.toggle('is-admin',!!isAdmin);
+  const hide=(el,h)=>{if(el)el.style.display=h?'none':'';};
+  // Cash Transactions: entry form + link/sync bar are admin only
+  const t=document.getElementById('ct-form-title');
+  if(t){const card=t.closest('.card');if(card){
+    card.style.display=isAdmin?'':'none';
+    let n=document.getElementById('ct-admin-note');
+    if(!n){n=document.createElement('div');n.id='ct-admin-note';n.className='card';n.style.cssText='text-align:center;color:#888;padding:18px';n.textContent='🔐 Admin access required to add or edit cash entries. You can view the cash book below.';card.parentNode.insertBefore(n,card);}
+    n.style.display=isAdmin?'none':'block';}}
+  hide(document.getElementById('ct-syncbar'),!isAdmin);
+  // ledger "+ Add Entry / Quick Entry" buttons
+  document.querySelectorAll('button[onclick^="openLedgerEntry"],button[onclick^="ctSyncAll"],button[onclick^="saveManualEntry"]').forEach(b=>hide(b,!isAdmin));
+}
+const _ra=renderAll;
+renderAll=function(){const r=_ra.apply(this,arguments);try{applyRole();}catch(_){}return r;};
+const _go2=go;
+go=function(){const r=_go2.apply(this,arguments);try{applyRole();}catch(_){}return r;};
+window.addEventListener('load',()=>{setTimeout(applyRole,800);setTimeout(applyRole,3500);});
+})();
+</script>
+
 </body>
 </html>
