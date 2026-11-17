@@ -1187,6 +1187,11 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <div class="fg"><label>Entered By</label><input id="ct-op" placeholder="Operator name"/></div>
     </div>
 
+    <div class="frow c2" style="margin-top:4px;margin-bottom:6px">
+      <div class="fg"><label>🔎 Fetch pending cash bill (auto-fills party, amount &amp; bill link)</label>
+        <div style="display:flex;gap:8px"><input id="ct-fetchno" list="ct-fetch-list" autocomplete="off" placeholder="Bill no e.g. CB-0123" onkeydown="if(event.key==='Enter'){event.preventDefault();cbpFetchToForm();}"/><datalist id="ct-fetch-list"></datalist>
+        <button class="btn primary" type="button" onclick="cbpFetchToForm()">Fetch</button></div></div>
+    </div>
     <div id="ct-link-wrap" style="margin-top:4px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:#185FA5">
         <input type="checkbox" id="ct-link" style="width:auto" onchange="ctLinkToggle()"/> 🔗 Link to party bills (split one cash amount across several bills)
@@ -1257,6 +1262,16 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div style="font-size:13px;margin-bottom:8px">Open <b>Supabase → SQL Editor</b>, paste this, click <b>Run</b>, then press Retry. Until then, follow-up dates/remarks are saved only in this browser.</div>
     <pre id="cbp-sql" style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:8px;font-size:12px;overflow:auto;white-space:pre-wrap"></pre>
     <div class="ar"><button class="btn sm" onclick="cbpCopySql()">Copy SQL</button><button class="btn sm primary" onclick="cbpRetry()">Retry</button></div>
+  </div>
+  <div class="card" style="padding:12px 16px;border-left:4px solid #185FA5">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <b style="font-size:13px">🔎 Fetch Bill</b>
+      <input id="cbp-fetch" list="cbp-fetch-list" autocomplete="off" placeholder="Type / pick cash bill no (e.g. CB-0123)" style="flex:1;min-width:220px" onkeydown="if(event.key==='Enter')cbpFetch()"/>
+      <datalist id="cbp-fetch-list"></datalist>
+      <button class="btn primary" onclick="cbpFetch()">Fetch</button>
+      <button class="btn" onclick="document.getElementById('cbp-fetch').value='';document.getElementById('cbp-fetch-res').innerHTML=''">Clear</button>
+    </div>
+    <div id="cbp-fetch-res"></div>
   </div>
   <div class="grid4" id="cbp-summary"></div>
   <div class="card" id="cbp-today" style="display:none;border-left:4px solid #c62828"></div>
@@ -5466,7 +5481,7 @@ function filtered(){
 function render(){
   if(!$('cbp-table'))return;
   try{localStorage.setItem('cbp_credit',String(credit()));}catch(_){}
-  compute();
+  compute();fillLists();
   const t=today(),c=credit();
   const tot=rows.reduce((s,r)=>s+r.pending,0),od=rows.filter(r=>r.age>c),odAmt=od.reduce((s,r)=>s+r.pending,0),
         parties_=new Set(rows.map(r=>ctNorm(r.party))).size,due=rows.filter(r=>r.fu&&r.fu<=t);
@@ -5598,6 +5613,52 @@ window.cbpPrint=()=>{if(!shown.length){toast('Nothing to print','err');return;}
     shown.map(r=>'<tr><td>'+esc(r.billNo)+'</td><td>'+ctDMY(r.date)+'</td><td>'+esc(r.party)+'</td><td>'+r.age+' d</td><td class="r">'+r.amount.toFixed(2)+'</td><td class="r">'+r.pending.toFixed(2)+'</td><td>'+(r.fu?ctDMY(r.fu):'')+'</td><td>'+esc(r.remark)+'</td></tr>').join('')+
     '<tr><th colspan="5">Total</th><th class="r">'+shown.reduce((s,r)=>s+r.pending,0).toFixed(2)+'</th><th colspan="2"></th></tr></table></body></html>');
   w.document.close();w.focus();setTimeout(()=>w.print(),300);};
+
+/* ---------- Fetch Bill ---------- */
+function fillLists(){
+  const opts=rows.slice().sort((x,y)=>y.age-x.age).map(r=>'<option value="'+esc(r.billNo)+'">'+esc(r.party)+' – '+fm(r.pending)+' pending</option>').join('');
+  ['cbp-fetch-list','ct-fetch-list'].forEach(id=>{const d=$(id);if(d)d.innerHTML=opts;});
+}
+function findBill(no){
+  const n=ctNorm(no);if(!n)return {err:'Enter a bill number'};
+  if(!ctCBOK)return {err:'Cash bills could not be read from the Quotation module'};
+  const all=ctCBRows.filter(r=>r.doc_no&&!/-CMP-/i.test(r.doc_no));
+  let m=all.filter(r=>ctNorm(r.doc_no)===n);
+  if(!m.length)m=all.filter(r=>ctNorm(r.doc_no).includes(n));
+  if(!m.length)return {err:'Bill "'+no+'" not found in Quotation cash bills'};
+  if(m.length>1)return {err:m.length+' bills match "'+no+'" – type the full bill number (e.g. '+m.slice(0,3).map(r=>r.doc_no).join(', ')+')'};
+  const cb=m[0];
+  return {cb,row:rows.find(r=>ctNorm(r.billNo)===ctNorm(cb.doc_no)),cancelled:(cb.doc_status||'Quoted')==='Cancelled'};
+}
+window.cbpFetch=()=>{
+  compute();const res=$('cbp-fetch-res'),f=findBill($('cbp-fetch').value);
+  if(f.err){res.innerHTML='<div style="margin-top:10px;color:#c62828;font-size:13px">⚠ '+esc(f.err)+'</div>';return;}
+  const cb=f.cb,r=f.row,amt=ctR2(cb.net_payable);
+  const badge=f.cancelled?'<span class="badge low">CANCELLED</span>':r?'<span class="badge out">PAYMENT PENDING</span>':'<span class="badge ok">PAID</span>';
+  const ph=phoneOf(cb.cust_name);
+  res.innerHTML='<div style="margin-top:12px;padding:12px;border:1px solid #e0e0e0;border-radius:8px;background:#fafcff">'+
+    '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><div><b style="font-size:15px">'+esc(cb.doc_no)+'</b> '+badge+'<div style="font-size:12px;color:#555;margin-top:2px">'+esc(cb.cust_name)+(ph?' · '+esc(ph):'')+' · Bill date '+ctDMY(cb.doc_date)+'</div></div>'+
+    '<div style="text-align:right"><div style="font-size:11px;color:#888">Bill amount</div><b>'+fm(amt)+'</b></div></div>'+
+    (r?'<div class="grid4" style="margin:10px 0 6px"><div class="metric"><div class="ml">Paid</div><div class="mv success" style="font-size:20px">'+fm(r.paid)+'</div></div><div class="metric"><div class="ml">Pending</div><div class="mv danger" style="font-size:20px">'+fm(r.pending)+'</div></div><div class="metric"><div class="ml">Age</div><div class="mv" style="font-size:20px">'+r.age+' d</div></div></div>'+
+      '<div style="font-size:12px">'+(r.fu?'📅 Follow-up <b>'+ctDMY(r.fu)+'</b>':'<span style="color:#aaa">No follow-up set</span>')+(r.remark?' · '+esc(r.remark):'')+(r.cnt?' · Reminded '+r.cnt+'×':'')+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn sm primary" onclick="cbpReceive('+r.i+')">💵 Receive payment</button><button class="btn sm" onclick="cbpWA('+r.i+')">📲 WhatsApp</button><button class="btn sm" onclick="cbpEdit('+r.i+')">📝 Follow-up</button></div>'
+     :'<div style="font-size:12px;color:#555;margin-top:8px">'+(f.cancelled?'This bill is cancelled – nothing is pending.':'Fully received – nothing is pending on this bill.')+'</div>')+
+    '</div>';
+};
+window.cbpFetchToForm=()=>{
+  compute();const f=findBill(ctEl('ct-fetchno').value);
+  if(f.err){toast(f.err,'err');return;}
+  if(f.cancelled){toast('Bill '+f.cb.doc_no+' is cancelled','err');return;}
+  if(!f.row){toast('Bill '+f.cb.doc_no+' is already fully received','info');return;}
+  const r=f.row;
+  ctEl('ct-type').value='IN';ctTypeChanged();
+  ctEl('ct-party').value=r.party;
+  ctEl('ct-link').checked=true;ctLinkToggle();
+  ctEl('ct-amt').value=ctR2(r.pending);
+  prefer={party:r.party,billNo:r.billNo};
+  ctLinkRefresh(true);
+  toast(r.billNo+' · '+r.party+' · '+fm(r.pending)+' pending – edit amount if part-payment','ok');
+};
 
 /* hooks: refresh whenever Cash Transactions data reloads (e.g. after a payment is saved) */
 const _ctLoad=ctLoad;
