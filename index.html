@@ -4732,6 +4732,17 @@ function ctCBSyncPlan(party){
       else if(!cancelled&&Math.abs((+ex.debit||0)-amt)>0.005)plan.upd.push({id:ex.id,debit:amt});
     }
   });
+  /* Bills DELETED from the Quotation module: their auto-created ledger debit must go too (only if nothing was received on them) */
+  if(ctCBOK&&ctCBRows.length){
+    const live=new Set(ctCBRows.map(r=>ctNorm(r.doc_no)));
+    ledgerEntries.forEach(e=>{
+      if(e.ledger_type!=='CUSTOMER'||!String(e.remarks||'').startsWith('CB-SYNC')||!((+e.debit||0)>0))return;
+      if(party&&!ctNameMatch(e.party_name,party))return;
+      if(live.has(ctNorm(e.bill_no)))return;
+      const paid=ledgerEntries.some(x=>x.ledger_type==='CUSTOMER'&&ctNorm(x.party_name)===ctNorm(e.party_name)&&ctNorm(x.bill_no)===ctNorm(e.bill_no)&&(+x.credit||0)>0);
+      if(!paid&&!plan.del.includes(e.id))plan.del.push(e.id);
+    });
+  }
   ctRETRows.forEach(r=>{
     if(!r.doc_no||!r.cust_name)return;
     if(party&&!ctNameMatch(r.cust_name,party))return;
