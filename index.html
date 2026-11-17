@@ -4913,7 +4913,7 @@ async function ctMoveIds(ids,book){
 function ctMoveSel(book){ctMoveIds([...document.querySelectorAll('#ct-body .ct-sel:checked')].map(c=>+c.value),book);}
 function ctMoveByCat(){ctMoveIds(ctRows.filter(r=>/petty/i.test(r.category||'')&&ctBookOf(r)!=='PETTY').map(r=>r.id),'PETTY');}
 function ctModeChanged(){ctEl('ct-upi-wrap').style.display=ctEl('ct-mode').value==='UPI'?'block':'none';}
-function ctBookViewChanged(){if(!ctEditId)ctEl('ct-book').value=ctEl('ct-bookview').value;ctRender();}
+function ctBookViewChanged(){ctRender();}
 const ctAllocsOf=id=>ctAllocs.filter(a=>a.cash_txn_id===id);
 function ctBillsText(id){return ctAllocsOf(id).map(a=>(a.bill_no||'(no bill no)')+': '+ctR2(a.amount)).join('; ');}
 
@@ -5031,7 +5031,8 @@ function ctTypeChanged(){
   const t=ctEl('ct-type').value;
   ctEl('ct-src').value='LEDGER';
   if(ctEl('ct-link').checked)ctEl('ct-cat').value=t==='IN'?'Sales Receipt (Cash)':'Purchase (Cash)';
-  ctCatChanged();
+  if(t==='IN'){if(!ctEditId){ctEl('ct-book').value='GENERAL';ctEl('ct-cat-hint').textContent='';}}   // payments received always default to General Cash (change manually if needed)
+  else ctCatChanged();
   ctLinkRefresh(true);
 }
 function ctLinkToggle(){
@@ -5039,6 +5040,7 @@ function ctLinkToggle(){
     const t=ctEl('ct-type').value;
     ctEl('ct-src').value='LEDGER';
     ctEl('ct-cat').value=t==='IN'?'Sales Receipt (Cash)':'Purchase (Cash)';
+    if(!ctEditId)ctEl('ct-book').value='GENERAL';
   }
   ctLinkRefresh(true);
 }
@@ -5146,7 +5148,7 @@ function ctReset(){
   ctEl('ct-type').value='OUT';
   ctEl('ct-cat').selectedIndex=0;
   ['ct-party','ct-amt','ct-desc'].forEach(i=>ctEl(i).value='');
-  ctEl('ct-mode').value='Cash';ctEl('ct-upi').value='';ctEl('ct-book').value=ctEl('ct-bookview').value;ctEl('ct-cat-hint').textContent='';ctModeChanged();
+  ctEl('ct-mode').value='Cash';ctEl('ct-upi').value='';ctEl('ct-book').value='GENERAL';ctEl('ct-cat-hint').textContent='';ctModeChanged();
   ctEl('ct-link').checked=false;ctEl('ct-link-wrap').style.display='block';ctEl('ct-src').value='LEDGER';
   ctLinkRefresh();
   ctEl('ct-save-btn').textContent='Save Entry';
