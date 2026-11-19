@@ -4110,6 +4110,16 @@ async function deleteLedgerEntry(id, type){
 }
 
 // ── PRINT LEDGER ──────────────────────────────────────────────────
+/* Statement print / Save-as-PDF: browser uses the page title as the file name, so title it with the client's name */
+function stmtPrint(party,type){
+  const old=document.title;
+  document.title=(type==='SUPPLIER'?'Supplier':'Customer')+'_Statement_'+String(party||'').trim().replace(/[^a-z0-9]/gi,'_')+'_'+today();
+  const restore=()=>{document.title=old;window.removeEventListener('afterprint',restore);};
+  window.addEventListener('afterprint',restore);
+  window.print();
+  setTimeout(()=>{document.body.classList.remove('printing-ledger');},1000);
+  setTimeout(restore,60000);
+}
 function printLedger(type){
   const partyEl=type==='SUPPLIER'?document.getElementById('sl-party'):document.getElementById('cl-party');
   const party=partyEl?.value||'';
@@ -4176,8 +4186,7 @@ function printLedger(type){
     </div>`;
   document.getElementById('ledger-print-content').innerHTML=html;
   document.body.classList.add('printing-ledger');
-  window.print();
-  setTimeout(()=>{document.body.classList.remove('printing-ledger');},1000);
+  stmtPrint(party,type);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -5370,8 +5379,7 @@ function clPrintSimple(party){
     '<div style="text-align:right"><strong>COMPANY BANK DETAILS</strong><br>SAI GANESH ELECTRICALS - SSE<br>A/C No. 50200029005060<br>IFSC CODE: HDFC0000696 | BANK: HDFC<br>E-MAIL: krishnadsge@gmail.com</div></div>';
   document.getElementById('ledger-print-content').innerHTML=html;
   document.body.classList.add('printing-ledger');
-  window.print();
-  setTimeout(()=>{document.body.classList.remove('printing-ledger');},1000);
+  stmtPrint(party,'CUSTOMER');
 }
 function clExportSimple(party){
   const x=clSimple(party);
