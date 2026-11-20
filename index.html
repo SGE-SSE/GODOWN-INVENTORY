@@ -4826,10 +4826,23 @@ function ctPendingCB(party){
   const paid={};
   ctAllocs.filter(a=>a.ledger_type==='CASHBILL').forEach(a=>{const k=ctNorm(a.bill_no);paid[k]=(paid[k]||0)+(+a.amount||0);});
   ledgerEntries.forEach(e=>{if(e.ledger_type==='CUSTOMER'&&(+e.credit||0)>0&&e.bill_no&&ctNameMatch(e.party_name,party)){const k=ctNorm(e.bill_no);paid[k]=(paid[k]||0)+(+e.credit||0);}});
-  const bills=rows.map(r=>{
+  /* Credits that name no bill of this party (e.g. a credit note for a return made WITHOUT a cash bill) are applied to the oldest pending bills first,
+     exactly like the Customer Ledger / Receive-payment form does - so this list always agrees with the ledger balance. */
+  const known=new Set(rows.map(r=>ctNorm(r.doc_no)));
+  ctCBRows.forEach(r=>{if(r.doc_no&&match(r.cust_name))known.add(ctNorm(r.doc_no));});
+  ledgerEntries.forEach(e=>{if(e.ledger_type==='CUSTOMER'&&(+e.debit||0)>0&&e.bill_no&&ctNameMatch(e.party_name,party))known.add(ctNorm(e.bill_no));});
+  let pool=0;
+  ledgerEntries.forEach(e=>{if(e.ledger_type==='CUSTOMER'&&(+e.credit||0)>0&&ctNameMatch(e.party_name,party)&&(!e.bill_no||!known.has(ctNorm(e.bill_no))))pool+=(+e.credit||0);});
+  const all=rows.map(r=>{
     const amount=ctR2(r.net_payable);
     return {key:'CB:'+r.id,billNo:r.doc_no,date:r.doc_date,due:'',amount,pending:ctR2(amount-(paid[ctNorm(r.doc_no)]||0)),custName:r.cust_name,status:r.doc_status||'Quoted'};
-  }).filter(b=>b.pending>0.005);
+  });
+  /* credit above a bill's amount (e.g. a return against a bill that was already paid) is carried forward to the oldest pending bills - same as the ledger */
+  all.forEach(b=>{if(b.pending<-0.005){pool=ctR2(pool-b.pending);b.pending=0;}});
+  all.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.billNo).localeCompare(String(b.billNo))).forEach(b=>{
+    if(pool>0.004&&b.pending>0.005){const t=Math.min(pool,b.pending);b.pending=ctR2(b.pending-t);pool=ctR2(pool-t);}
+  });
+  const bills=all.filter(b=>b.pending>0.005);
   return {bills,balance:ctR2(bills.reduce((t,b)=>t+b.pending,0)),name:String(party||'').trim(),found:rows.length>0};
 }
 async function ctLoad(){
