@@ -1291,6 +1291,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
       <button class="btn sm" onclick="cbpRefresh()">⟳ Refresh</button>
       <button class="btn sm" onclick="cbpExport()">⬇ Excel</button>
       <button class="btn sm" onclick="cbpPrint()">🖨 Print</button>
+      <button class="btn sm" onclick="cbpTmAll()" title="Create/update a Task Manager reminder for every saved follow-up">🔔 Send follow-ups to Task Manager</button>
     </div>
     <div class="tw" id="cbp-table"><div class="loading">Loading…</div></div>
   </div>
@@ -5454,6 +5455,46 @@ const daysBetween=(a,b)=>Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:
 const addDays=(d,n)=>{const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);return ymd(x);};
 const credit=()=>{const v=parseInt($('cbp-credit').value,10);return isNaN(v)||v<0?7:v;};
 
+/* ---------- Task Manager link (Cratio Lead Manager) ----------
+   Every follow-up date becomes ONE task in the Task Manager (id = cbp_<bill no>), due 10:00 AM that day, so its push reminder rings on your phone.
+   Changing the date updates the same task and re-arms the reminder; when the bill is fully paid the task is marked completed. */
+const TM_URL='https://btzkefnkuouwbyzcebsd.supabase.co',TM_KEY='sb_publishable_X5uX19zEqxl5yQfGKXknmg_6bPQ9ZbS',TM_TIME='10:00';
+const tmH=x=>Object.assign({'apikey':TM_KEY,'Authorization':'Bearer '+TM_KEY,'Content-Type':'application/json'},x||{});
+const tmId=b=>'cbp_'+String(b||'').replace(/[^A-Za-z0-9]/g,'').slice(0,80);
+async function tmGet(q){const r=await fetch(TM_URL+'/rest/v1/tasks?'+q,{headers:tmH({Accept:'application/json'})});if(!r.ok)throw new Error('Task Manager '+r.status);return r.json();}
+async function tmSend(method,q,body,prefer){const r=await fetch(TM_URL+'/rest/v1/tasks'+(q?'?'+q:''),{method,headers:tmH({Prefer:prefer||'return=minimal'}),body:JSON.stringify(body)});if(!r.ok)throw new Error('Task Manager '+r.status+' '+(await r.text()).slice(0,80));}
+async function tmSync(billNo,party,date,remark,quiet){
+  if(!isAdmin)return;
+  try{
+    const id=tmId(billNo),eq='id=eq.'+encodeURIComponent(id),now=new Date().toISOString();
+    const ex=(await tmGet(eq+'&select=*'))[0];
+    if(!date){if(ex&&!ex.completed)await tmSend('PATCH',eq,{completed:true,updated_at:now});return;}   // follow-up cleared -> task done
+    const r=rows.find(x=>ctNorm(x.billNo)===ctNorm(billNo));if(!r)return;                          // bill no longer pending
+    const c=credit(),pr=r.age>c*2?'Urgent':r.age>c?'Important':'Normal',ph=phoneOf(party),short=String(billNo).split('/')[0];
+    const title='💰 Collect ₹'+Math.round(r.pending).toLocaleString('en-IN')+' – '+party+' ('+short+')';
+    const notes=['Party: '+party+(ph?'  ·  Phone: '+ph:''),'Bill: '+billNo+' dated '+ctDMY(r.date)+' ('+r.age+' days old)','Pending ₹'+(+r.pending).toLocaleString('en-IN',{minimumFractionDigits:2})+' of bill ₹'+(+r.amount).toLocaleString('en-IN',{minimumFractionDigits:2}),remark?'Remark: '+remark:'','(Added from Cash Bills Pending)'].filter(Boolean).join('\n');
+    const changed=!ex||ex.completed||ex.due_date!==date||(ex.due_time||'')!==TM_TIME;
+    await tmSend('POST','',{id,title,priority:pr,due_date:date,due_time:TM_TIME,notes,completed:false,last_notified_date:changed?null:(ex.last_notified_date||null),repeat:'None',lead_id:null,created_at:ex&&ex.created_at?ex.created_at:now,updated_at:now},'resolution=merge-duplicates,return=minimal');
+    if(!quiet)toast('🔔 Reminder added to Task Manager for '+ctDMY(date)+', 10:00 AM','ok');
+  }catch(e){toast('Saved here, but could not update Task Manager: '+String((e&&e.message)||e).slice(0,90),'err');}
+}
+let tmBusy=false;
+async function tmReconcile(){   // bills that are no longer pending -> their reminder tasks are completed
+  if(tmBusy||!isAdmin||!ctCBOK||!ctCBRows.length)return;
+  tmBusy=true;
+  try{
+    const open=await tmGet('id=like.cbp_*&completed=eq.false&select=id'),live=new Set(rows.map(r=>tmId(r.billNo)));
+    for(const t of open){if(!live.has(t.id))await tmSend('PATCH','id=eq.'+encodeURIComponent(t.id),{completed:true,updated_at:new Date().toISOString()});}
+  }catch(_){}
+  tmBusy=false;
+}
+window.cbpTmAll=async()=>{
+  const l=rows.filter(r=>r.fu);if(!l.length){toast('No follow-ups saved yet','info');return;}
+  toast('Sending '+l.length+' follow-up(s) to Task Manager…','info');
+  for(const r of l)await tmSync(r.billNo,r.party,r.fu,r.remark,true);
+  toast('✓ '+l.length+' follow-up(s) are now in Task Manager','ok');
+};
+
 /* ---------- follow-up storage ---------- */
 function getFU(billNo){const k=ctNorm(billNo);return fuOK?fu.find(x=>ctNorm(x.bill_no)===k):LS[k];}
 async function loadFU(){
@@ -5470,6 +5511,7 @@ async function saveFU(billNo,party,date,remark,reminded){
     await loadFU();
   }
   if(!fuOK){LS[ctNorm(billNo)]={bill_no:billNo,party,...rec};localStorage.setItem('cbp_fu',JSON.stringify(LS));}
+  tmSync(billNo,party,rec.follow_up_date,rec.remark);
 }
 
 /* ---------- data ---------- */
@@ -5696,7 +5738,7 @@ window.cbpFetchToForm=()=>{
 
 /* hooks: refresh whenever Cash Transactions data reloads (e.g. after a payment is saved) */
 const _ctLoad=ctLoad;
-ctLoad=async function(){await loadFU();const r=await _ctLoad.apply(this,arguments);render();return r;};
+ctLoad=async function(){await loadFU();const r=await _ctLoad.apply(this,arguments);render();tmReconcile();return r;};
 const _go=go;
 go=function(n,b){const r=_go.apply(this,arguments);if(n==='cbpending')cbpOpen();return r;};
 window.addEventListener('load',()=>{setTimeout(()=>{try{$('cbp-sql').textContent=SQL;if(!ctReady)ctInit();}catch(_){}},2500);});
@@ -5704,7 +5746,7 @@ window.addEventListener('load',()=>{setTimeout(()=>{try{$('cbp-sql').textContent
 </script>
 
 <style>
-body:not(.is-admin) #cbp-today button,body:not(.is-admin) #cbp-fetch-res button,body:not(.is-admin) #page-cbpending #cbp-table td button{display:none!important}
+body:not(.is-admin) button[onclick^="cbpTmAll"],body:not(.is-admin) #cbp-today button,body:not(.is-admin) #cbp-fetch-res button,body:not(.is-admin) #page-cbpending #cbp-table td button{display:none!important}
 </style>
 <script>
 /* ===== ADMIN-ONLY ENTRIES =====
@@ -5712,7 +5754,7 @@ body:not(.is-admin) #cbp-today button,body:not(.is-admin) #cbp-fetch-res button,
 (function(){
 const LOUD=['addItem','delItem','delItemVerified','saveEdit','bulkAddColorItems','submitQ','saveEditTxn','deleteTxn','bulkMergeDupGroups','mergeDupGroup','manualDupMerge','doTransfer','submitDmgQueue',
   'saveParty','doRenameParty','openLedgerEntry','saveLedgerEntry','deleteLedgerEntry','saveManualEntry',
-  'ctSave','ctDel','ctEdit','ctMoveIds','ctSyncAll','cbpSaveModal','cbpEdit','cbpWA','cbpWAParty','cbpReceive','cbpReceiveParty','cbpFetchToForm'];
+  'ctSave','ctDel','ctEdit','ctMoveIds','ctSyncAll','cbpSaveModal','cbpEdit','cbpWA','cbpWAParty','cbpReceive','cbpReceiveParty','cbpFetchToForm','cbpTmAll'];
 const SILENT=['autoSaveParty','saveCreditToSupabase','ctSyncBills'];
 function wrap(n,loud){
   const f=window[n];if(typeof f!=='function')return;
