@@ -5463,18 +5463,22 @@ const tmH=x=>Object.assign({'apikey':TM_KEY,'Authorization':'Bearer '+TM_KEY,'Co
 const tmId=b=>'cbp_'+String(b||'').replace(/[^A-Za-z0-9]/g,'').slice(0,80);
 async function tmGet(q){const r=await fetch(TM_URL+'/rest/v1/tasks?'+q,{headers:tmH({Accept:'application/json'})});if(!r.ok)throw new Error('Task Manager '+r.status);return r.json();}
 async function tmSend(method,q,body,prefer){const r=await fetch(TM_URL+'/rest/v1/tasks'+(q?'?'+q:''),{method,headers:tmH({Prefer:prefer||'return=minimal'}),body:JSON.stringify(body)});if(!r.ok)throw new Error('Task Manager '+r.status+' '+(await r.text()).slice(0,80));}
+/* builds the Task Manager row for one pending bill (weekly repeat until paid) */
+function tmBuild(r,due,ex,now){
+  const c=credit(),pr=r.age>c*2?'Urgent':r.age>c?'Important':'Normal',ph=phoneOf(r.party),short=String(r.billNo).split('/')[0];
+  const title='💰 Collect ₹'+Math.round(r.pending).toLocaleString('en-IN')+' – '+r.party+' ('+short+')';
+  const notes=['Party: '+r.party+(ph?'  ·  Phone: '+ph:''),'Bill: '+r.billNo+' dated '+ctDMY(r.date)+' ('+r.age+' days old)','Pending ₹'+(+r.pending).toLocaleString('en-IN',{minimumFractionDigits:2})+' of bill ₹'+(+r.amount).toLocaleString('en-IN',{minimumFractionDigits:2}),r.remark?'Remark: '+r.remark:'','Repeats every 7 days until the bill is paid. (Cash Bills Pending)'].filter(Boolean).join('\n');
+  const same=ex&&!ex.completed&&ex.due_date===due&&(ex.due_time||'')===TM_TIME;
+  return {id:tmId(r.billNo),title,priority:pr,due_date:due,due_time:TM_TIME,notes,completed:false,last_notified_date:same?(ex.last_notified_date||null):null,repeat:'Weekly',lead_id:null,created_at:ex&&ex.created_at?ex.created_at:now,updated_at:now};
+}
 async function tmSync(billNo,party,date,remark,quiet){
   if(!isAdmin)return;
   try{
     const id=tmId(billNo),eq='id=eq.'+encodeURIComponent(id),now=new Date().toISOString();
     const ex=(await tmGet(eq+'&select=*'))[0];
-    if(!date){if(ex&&!ex.completed)await tmSend('PATCH',eq,{completed:true,updated_at:now});return;}   // follow-up cleared -> task done
+    if(!date){if(ex&&!ex.completed)await tmSend('PATCH',eq,{completed:true,updated_at:now});return;}   // follow-up cleared -> task done (the auto reminder re-creates it on the next load)
     const r=rows.find(x=>ctNorm(x.billNo)===ctNorm(billNo));if(!r)return;                          // bill no longer pending
-    const c=credit(),pr=r.age>c*2?'Urgent':r.age>c?'Important':'Normal',ph=phoneOf(party),short=String(billNo).split('/')[0];
-    const title='💰 Collect ₹'+Math.round(r.pending).toLocaleString('en-IN')+' – '+party+' ('+short+')';
-    const notes=['Party: '+party+(ph?'  ·  Phone: '+ph:''),'Bill: '+billNo+' dated '+ctDMY(r.date)+' ('+r.age+' days old)','Pending ₹'+(+r.pending).toLocaleString('en-IN',{minimumFractionDigits:2})+' of bill ₹'+(+r.amount).toLocaleString('en-IN',{minimumFractionDigits:2}),remark?'Remark: '+remark:'','(Added from Cash Bills Pending)'].filter(Boolean).join('\n');
-    const changed=!ex||ex.completed||ex.due_date!==date||(ex.due_time||'')!==TM_TIME;
-    await tmSend('POST','',{id,title,priority:pr,due_date:date,due_time:TM_TIME,notes,completed:false,last_notified_date:changed?null:(ex.last_notified_date||null),repeat:'None',lead_id:null,created_at:ex&&ex.created_at?ex.created_at:now,updated_at:now},'resolution=merge-duplicates,return=minimal');
+    await tmSend('POST','',tmBuild(Object.assign({},r,{remark:remark}),date,ex,now),'resolution=merge-duplicates,return=minimal');
     if(!quiet)toast('🔔 Reminder added to Task Manager for '+ctDMY(date)+', 10:00 AM','ok');
   }catch(e){toast('Saved here, but could not update Task Manager: '+String((e&&e.message)||e).slice(0,90),'err');}
 }
@@ -5486,6 +5490,27 @@ async function tmReconcile(){   // bills that are no longer pending -> their rem
     const open=await tmGet('id=like.cbp_*&completed=eq.false&select=id'),live=new Set(rows.map(r=>tmId(r.billNo)));
     for(const t of open){if(!live.has(t.id))await tmSend('PATCH','id=eq.'+encodeURIComponent(t.id),{completed:true,updated_at:new Date().toISOString()});}
   }catch(_){}
+  tmBusy=false;
+}
+/* AUTOMATIC REMINDERS: every pending cash bill gets a task due 7 days after the bill date (today if that has passed) that repeats weekly.
+   Paid bills are closed by tmReconcile and never repeat. A manual follow-up date replaces the automatic date. */
+async function tmAuto(){
+  if(tmBusy||!isAdmin||!ctCBOK||!ctCBRows.length||!rows.length)return;
+  tmBusy=true;
+  try{
+    const all=await tmGet('id=like.cbp_*&select=id,completed,title,due_date,due_time,last_notified_date,created_at');
+    const map=new Map(all.map(t=>[t.id,t])),now=new Date().toISOString(),t0=today(),creates=[],patches=[];
+    rows.forEach(r=>{
+      const ex=map.get(tmId(r.billNo));
+      const auto=r.date?addDays(String(r.date).slice(0,10),7):t0,due=r.fu||(auto>t0?auto:t0);
+      if(!ex||ex.completed){creates.push(tmBuild(r,due,ex,now));return;}               // new bill (or re-opened) -> create
+      const row=tmBuild(r,ex.due_date,ex,now);                                           // already open -> keep its schedule, refresh amount/priority only
+      if(row.title!==ex.title)patches.push({id:row.id,title:row.title,priority:row.priority,notes:row.notes,updated_at:now});
+    });
+    if(creates.length)await tmSend('POST','',creates,'resolution=merge-duplicates,return=minimal');
+    for(const x of patches){const id=x.id;delete x.id;await tmSend('PATCH','id=eq.'+encodeURIComponent(id),x);}
+    if(creates.length)toast('🔔 '+creates.length+' cash bill reminder(s) added to Task Manager','ok');
+  }catch(e){console.warn('Auto reminders:',e);}
   tmBusy=false;
 }
 window.cbpTmAll=async()=>{
@@ -5738,7 +5763,7 @@ window.cbpFetchToForm=()=>{
 
 /* hooks: refresh whenever Cash Transactions data reloads (e.g. after a payment is saved) */
 const _ctLoad=ctLoad;
-ctLoad=async function(){await loadFU();const r=await _ctLoad.apply(this,arguments);render();tmReconcile();return r;};
+ctLoad=async function(){await loadFU();const r=await _ctLoad.apply(this,arguments);render();tmReconcile().then(tmAuto);return r;};
 const _go=go;
 go=function(n,b){const r=_go.apply(this,arguments);if(n==='cbpending')cbpOpen();return r;};
 window.addEventListener('load',()=>{setTimeout(()=>{try{$('cbp-sql').textContent=SQL;if(!ctReady)ctInit();}catch(_){}},2500);});
