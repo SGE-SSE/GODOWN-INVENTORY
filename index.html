@@ -199,7 +199,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
     <div class="tw" id="dashWireTable"></div>
   </div>
   <div class="card" id="pipeCard" style="display:none">
-    <div class="card-title">🪠 Pipe Stock Overview <span style="font-size:11px;font-weight:400;color:#888;margin-left:6px">(Pipes only · Bends &amp; Flexible excluded)</span></div>
+    <div class="card-title">🪠 Pipe Stock Overview <span style="font-size:11px;font-weight:400;color:#888;margin-left:6px">(Pipes, Bends &amp; Flexible)</span></div>
     <div class="tw" id="dashPipeTable"></div>
   </div>
   <div class="card"><div class="card-title">Current Stock Overview</div>
@@ -576,7 +576,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
         <button class="btn sm" onclick="printPipeStock()">🖨 Print</button>
       </div>
     </div>
-    <p style="font-size:12px;color:#888;margin-bottom:14px">Select a brand to view <strong>only pipes</strong> for that brand — bends, flexible pipes and all other items excluded</p>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">Select a brand to view its <strong>pipes, bends &amp; flexible</strong> stock</p>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <label style="font-size:13px;font-weight:600;color:#333;white-space:nowrap">Select Brand:</label>
       <select id="pc-brand" onchange="renderPipeStock()" style="padding:9px 14px;border:2px solid #2e7d32;border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a1a;min-width:200px;font-weight:600;margin-bottom:0">
@@ -589,7 +589,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <div id="pc-empty-state" class="card" style="text-align:center;padding:50px 20px;border:2px dashed #c8e6c9">
     <div style="font-size:40px;margin-bottom:12px">🪠</div>
     <div style="font-size:15px;font-weight:600;color:#555;margin-bottom:6px">Select a Brand to View Pipe Stock</div>
-    <div style="font-size:13px;color:#999">Only pipes shown — bends, flexible pipes and all other items are excluded</div>
+    <div style="font-size:13px;color:#999">Pipes, bends and flexible items are shown</div>
   </div>
 
   <div id="pc-results" style="display:none">
@@ -1790,7 +1790,7 @@ function stock(id){
 }
 function isWire(item){const n=(item.name||'').toUpperCase();return n.includes('WIRE')||n.includes('SQMM')||n.includes('CABLE');}
 function baseName(name){let n=name.toUpperCase();WIRE_COLORS.forEach(c=>{n=n.replace(new RegExp('\\s+'+c+'$'),'').trim();});return n;}
-function isPipe(item){const n=(item.name||'').toUpperCase();return n.includes('PIPE')||n.includes('CONDUIT')||n.includes('TUBE')||n.includes('PVC')||n.includes('CPVC')||n.includes('UPVC')||n.includes('GI PIPE')||n.includes('MS PIPE');}
+function isPipe(item){const n=(item.name||'').toUpperCase();return n.includes('PIPE')||n.includes('CONDUIT')||n.includes('TUBE')||n.includes('PVC')||n.includes('CPVC')||n.includes('UPVC')||n.includes('GI PIPE')||n.includes('MS PIPE')||n.includes('BEND')||n.includes('FLEXIBLE')||/\bLMS\b|\bMMS\b/.test(n);}
 function getPipeSize(name){const n=(name||'').toUpperCase();return PIPE_SIZES.find(s=>n.includes(s))||null;}
 function pipeBaseName(name){let n=(name||'').toUpperCase();PIPE_SIZES.forEach(s=>{n=n.replace(new RegExp('\\s*'+s.replace('MM','\\s*MM')+'\\s*'),' ').trim();});return n.trim();}
 
@@ -1873,7 +1873,7 @@ function renderDash(){
 
   // ── PIPE LIST (pipes only, no bends) ─────────────────────────────
   // Only keep items that are PIPES — exclude BEND and FLEXIBLE
-  const pipeItems=items.filter(i=>{const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');});
+  const pipeItems=items.filter(i=>{const n=i.name.toUpperCase();return isPipe(i);});
   const pipeCard=document.getElementById('pipeCard');
   if(pipeItems.length){
     pipeCard.style.display='block';
@@ -1933,7 +1933,7 @@ function renderDash(){
     });
     document.getElementById('dashPipeTable').innerHTML=pHtml;
   } else pipeCard.style.display='none';
-  const nonWire=items.filter(i=>!isWire(i)&&!isPipe(i));
+  const nonWire=items.filter(i=>!isWire(i)&&!isPurePipe(i)); // bends/flexible now listed here
   const el=document.getElementById('dashTable');
   const dq=(document.getElementById('dashSearch')?.value||'').toLowerCase();
   if(!items.length){el.innerHTML='<div class="empty">No items yet.</div>';return;}
@@ -2072,7 +2072,7 @@ function fillBrands(){
   if(pcEl){
     const prev=pcEl.value;
     pcEl.innerHTML='<option value="">-- Select a Brand --</option>';
-    const pipeBrands=[...new Set(items.filter(i=>{const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');}).map(i=>bK(i.brand)))].sort();
+    const pipeBrands=[...new Set(items.filter(i=>{const n=i.name.toUpperCase();return isPipe(i);}).map(i=>bK(i.brand)))].sort();
     pipeBrands.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;pcEl.appendChild(o);});
     if(prev)pcEl.value=prev;
   }
@@ -2451,10 +2451,10 @@ function buildWireMatrix(brandItems){
 
 function buildPipeMatrix(brandItems){
   // Only PIPES — exclude BEND and FLEXIBLE
-  const pipeItems=brandItems.filter(i=>{const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');});
+  const pipeItems=brandItems.filter(i=>{const n=i.name.toUpperCase();return isPipe(i);});
   if(!pipeItems.length) return '';
   const sorted=pipeItems.sort((a,b)=>a.name.localeCompare(b.name));
-  let h='<div style="font-size:13px;font-weight:700;color:#1b5e20;padding:10px 16px;background:#e8f5e9;border-bottom:1px solid #c8e6c9;margin-top:2px">🪠 Pipes Only</div>';
+  let h='<div style="font-size:13px;font-weight:700;color:#1b5e20;padding:10px 16px;background:#e8f5e9;border-bottom:1px solid #c8e6c9;margin-top:2px">🪠 Pipes, Bends &amp; Flexible</div>';
   h+='<div class="tw"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr>'
     +'<th style="background:#2e7d32;color:#fff;padding:9px 14px;border:1px solid #388e3c;text-align:left">Pipe Name</th>'
     +'<th style="background:#2e7d32;color:#fff;padding:9px 14px;border:1px solid #388e3c;text-align:center;min-width:90px">Stock</th>'
@@ -2502,8 +2502,8 @@ function renderClosingStock(){
   if(sb){sb.innerHTML='<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Brand</div><div class="rv" style="color:#185FA5;font-size:14px">'+brandF+'</div></div>'+'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Total Items</div><div class="rv" style="color:#185FA5">'+totalItems+'</div></div>'+'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">OK Stock</div><div class="rv" style="color:#2e7d32">'+okItems+'</div></div>'+'<div class="rep-metric" style="flex:1;min-width:120px"><div class="rl">Low Stock</div><div class="rv" style="color:#c62828">'+lowItems.length+'</div></div>';}
 
   const wireItems=filtered.filter(isWire);
-  const pipeItems=filtered.filter(isPipe);
-  let otherItems=filtered.filter(i=>!isWire(i)&&!isPipe(i));
+  const pipeItems=filtered.filter(isPurePipe);
+  let otherItems=filtered.filter(i=>!isWire(i)&&!isPurePipe(i)); // bends/flexible now listed here
   let html='';
 
   // 1. WIRE colour matrix — only covers wire names ending in a colour
@@ -2552,7 +2552,7 @@ function renderClosingStock(){
 }
 
 // ── PIPE STOCK REPORT (pipes only, no bends/flexible) ────────────
-function isPurePipe(i){const n=i.name.toUpperCase();return isPipe(i)&&!n.includes('BEND')&&!n.includes('FLEXIBLE');}
+function isPurePipe(i){const n=i.name.toUpperCase();return isPipe(i);}
 
 function renderPipeStock(){
   const brandF=document.getElementById('pc-brand')?.value||'';
@@ -2621,7 +2621,7 @@ function exportPipeStockCSV(){
   const rows=[['Brand','Pipe Name','Stock','Unit','Min Level','Status']];
   pipeOnly.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;rows.push([i.brand||'',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='PipeStock-'+brandF+'-'+today()+'.csv';a.click();toast('Pipe stock exported!','ok');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=stockFileName(brandF,currentLoc,'PIPE STOCK')+'.csv';a.click();toast('Pipe stock exported!','ok');
 }
 function exportPipeStockXLSX(){
   const brandF=document.getElementById('pc-brand')?.value||'';
@@ -2629,7 +2629,7 @@ function exportPipeStockXLSX(){
   const pipeOnly=items.filter(i=>bK(i.brand)===bK(brandF)&&isPurePipe(i)).sort((a,b)=>a.name.localeCompare(b.name));
   const ws_data=[['Brand','Pipe Name','Stock','Unit','Min Level','Status']];
   pipeOnly.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;ws_data.push([i.brand||'',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
-  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:34},{wch:10},{wch:8},{wch:10},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'Pipe Stock');XLSX.writeFile(wb,'PipeStock-'+brandF+'-'+today()+'.xlsx');toast('Pipe stock exported!','ok');
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:34},{wch:10},{wch:8},{wch:10},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'Pipe Stock');XLSX.writeFile(wb,stockFileName(brandF,currentLoc,'PIPE STOCK')+'.xlsx');toast('Pipe stock exported!','ok');
 }
 function printPipeStock(){
   const brandF=document.getElementById('pc-brand')?.value||'';
@@ -2640,7 +2640,7 @@ function printPipeStock(){
   const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-pipeclosing').classList.add('active');
-  window.print();
+  const _t=document.title;document.title=stockFileName(document.getElementById('pc-brand')?.value||'',currentLoc,'PIPE STOCK');window.print();setTimeout(()=>{document.title=_t;},1500);
   setTimeout(()=>{document.getElementById('pcPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
 }
 
@@ -2651,7 +2651,7 @@ function exportClosingStockCSV(){
   const rows=[['Brand','Category','Item','Closing Stock','Unit','Min Level','Status']];
   filtered.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;rows.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='ClosingStock-'+brandF+'-'+today()+'.csv';a.click();toast('Closing stock exported!','ok');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=stockFileName(brandF,currentLoc,'STOCK')+'.csv';a.click();toast('Closing stock exported!','ok');
 }
 function exportClosingStockXLSX(){
   const brandF=document.getElementById('cs-brand')?.value||'';
@@ -2659,7 +2659,7 @@ function exportClosingStockXLSX(){
   const filtered=items.filter(i=>bK(i.brand)===bK(brandF)).sort((a,b)=>(a.category||'').localeCompare(b.category||'')||a.name.localeCompare(b.name));
   const ws_data=[['Brand','Category','Item','Closing Stock','Unit','Min Level','Status']];
   filtered.forEach(i=>{const s=stock(i.id),low=s<=i.min_stock&&i.min_stock>0;ws_data.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,low?'Low':'OK']);});
-  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:22},{wch:32},{wch:14},{wch:8},{wch:10},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'Closing Stock');XLSX.writeFile(wb,'ClosingStock-'+brandF+'-'+today()+'.xlsx');toast('Closing stock exported!','ok');
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:22},{wch:32},{wch:14},{wch:8},{wch:10},{wch:8}];XLSX.utils.book_append_sheet(wb,ws,'Closing Stock');XLSX.writeFile(wb,stockFileName(brandF,currentLoc,'STOCK')+'.xlsx');toast('Closing stock exported!','ok');
 }
 function printClosingStock(){
   const brandF=document.getElementById('cs-brand')?.value||'';
@@ -2670,11 +2670,15 @@ function printClosingStock(){
   const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-closingstock').classList.add('active');
-  window.print();
+  const _t=document.title;document.title=stockFileName(document.getElementById('cs-brand')?.value||'',currentLoc,'STOCK');window.print();setTimeout(()=>{document.title=_t;},1500);
   setTimeout(()=>{document.getElementById('csPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
 }
 
 // ── GODOWN STOCK LIST ─────────────────────────────────────────────
+function stockFileName(brand,loc,kind){
+  const parts=[(brand||'ALL BRANDS'),String(loc||currentLoc||'GODOWN').toUpperCase(),kind||'STOCK'];
+  return parts.join(' ').replace(/[\\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim();
+}
 function glRows(){
   const all=(window._allItemsCache||[]).filter(i=>locKey(i.location)===locKey('GODOWN'));
   const q=(document.getElementById('gl-search')?.value||'').trim().toLowerCase();
@@ -2719,12 +2723,12 @@ function glMatrix(){return [['Brand','Category','Item','Stock Available','Unit']
 function exportGodownListCSV(){
   const rows=glMatrix();if(rows.length<2){toast('Nothing to export','err');return;}
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='GodownStock-'+today()+'.csv';a.click();toast('Godown stock list exported!','ok');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=stockFileName(document.getElementById('gl-brand')?.value||'','GODOWN','STOCK')+'.csv';a.click();toast('Godown stock list exported!','ok');
 }
 function exportGodownListXLSX(){
   const rows=glMatrix();if(rows.length<2){toast('Nothing to export','err');return;}
   const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:18},{wch:22},{wch:36},{wch:16},{wch:8}];
-  XLSX.utils.book_append_sheet(wb,ws,'Godown Stock');XLSX.writeFile(wb,'GodownStock-'+today()+'.xlsx');toast('Godown stock list exported!','ok');
+  XLSX.utils.book_append_sheet(wb,ws,'Godown Stock');XLSX.writeFile(wb,stockFileName(document.getElementById('gl-brand')?.value||'','GODOWN','STOCK')+'.xlsx');toast('Godown stock list exported!','ok');
 }
 function printGodownList(){
   const m=document.getElementById('glPrintMeta');
@@ -2733,7 +2737,7 @@ function printGodownList(){
   const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-godownlist').classList.add('active');
-  window.print();
+  const _t=document.title;document.title=stockFileName(document.getElementById('gl-brand')?.value||'','GODOWN','STOCK');window.print();setTimeout(()=>{document.title=_t;},1500);
   setTimeout(()=>{document.getElementById('glPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
 }
 
@@ -2816,7 +2820,7 @@ function exportLowStockCSV(){
   const rows=[['Brand','Category','Item','Current Stock','Unit','Min Level','Shortfall']];
   low.forEach(i=>{const s=stock(i.id);rows.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,i.min_stock-s]);});
   const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='LowStock'+(brandF?'-'+brandF:'-AllBrands')+'-'+today()+'.csv';a.click();toast('Low stock report exported!','ok');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download=stockFileName(brandF,currentLoc,'LOW STOCK')+'.csv';a.click();toast('Low stock report exported!','ok');
 }
 function exportLowStockXLSX(){
   const brandF=document.getElementById('ls-brand')?.value||'';
@@ -2825,7 +2829,7 @@ function exportLowStockXLSX(){
   if(!low.length){toast('No low stock items!','info');return;}
   const ws_data=[['Brand','Category','Item','Current Stock','Unit','Min Level','Shortfall']];
   low.forEach(i=>{const s=stock(i.id);ws_data.push([i.brand||'',i.category||'Other',i.name,s,i.unit,i.min_stock,i.min_stock-s]);});
-  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:22},{wch:32},{wch:14},{wch:8},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,'Low Stock');XLSX.writeFile(wb,'LowStock'+(brandF?'-'+brandF:'-AllBrands')+'-'+today()+'.xlsx');toast('Low stock exported to Excel!','ok');
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(ws_data);ws['!cols']=[{wch:16},{wch:22},{wch:32},{wch:14},{wch:8},{wch:10},{wch:10}];XLSX.utils.book_append_sheet(wb,ws,'Low Stock');XLSX.writeFile(wb,stockFileName(brandF,currentLoc,'LOW STOCK')+'.xlsx');toast('Low stock exported to Excel!','ok');
 }
 function printLowStock(){
   const brandF=document.getElementById('ls-brand')?.value||'';
@@ -2835,7 +2839,7 @@ function printLowStock(){
   const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-lowstock').classList.add('active');
-  window.print();
+  const _t=document.title;document.title=stockFileName(document.getElementById('ls-brand')?.value||'',currentLoc,'LOW STOCK');window.print();setTimeout(()=>{document.title=_t;},1500);
   setTimeout(()=>{document.getElementById('lsPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
 }
 
@@ -4603,7 +4607,7 @@ const _PIPE_BRAND_MAP={"POLYCAB":"POLYCAB PVC"};
 function _rcBrand(it){
   const l=it.line||"";
   const to=_PIPE_BRAND_MAP[_nk(l)];
-  if(to && typeof isPipe==="function" && isPipe({name:it.desc}) && !(typeof isWire==="function" && isWire({name:it.desc}))) return to;
+  if(to && ((typeof isPipe==="function" && isPipe({name:it.desc})) || /\bBENDS?\b|\bLMS\b|\bMMS\b/i.test(it.desc||"")) && !(typeof isWire==="function" && isWire({name:it.desc}))) return to;
   return l;
 }
 let _rcv=null;
