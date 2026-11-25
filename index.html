@@ -163,6 +163,7 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
   <button onclick="go('fastmoving',this)">🔥 Fast Moving</button>
   <button onclick="go('reports',this)">📊 Reports</button>
   <button onclick="go('closingstock',this)">📦 Closing Stock</button>
+  <button onclick="go('godownlist',this)">🏭 Godown Stock List</button>
   <button onclick="go('pipeclosing',this)">🪠 Pipe Stock</button>
   <button onclick="go('lowstock',this)">⚠ Low Stock</button>
   <button onclick="go('partymaster',this)">🏢 Party Master</button>
@@ -500,6 +501,30 @@ input:focus,select:focus{outline:none;border-color:#185FA5}
 
 </div>
 
+
+<!-- GODOWN STOCK LIST (always Godown, only items with stock available) -->
+<div id="page-godownlist" class="page">
+  <div class="print-hdr" id="glPrintHdr"><h2>⚡ SGE-SSE -- Godown Stock Available</h2><p id="glPrintMeta"></p></div>
+  <div class="card" style="border-left:4px solid #1a3c6e">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+      <div class="card-title" style="margin-bottom:0;color:#1a3c6e;font-size:16px">🏭 Godown – Stock Available List</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn sm primary" onclick="exportGodownListCSV()">⬇ CSV</button>
+        <button class="btn sm" style="background:#1d6f42;color:#fff;border-color:#1d6f42" onclick="exportGodownListXLSX()">📊 Excel</button>
+        <button class="btn sm" onclick="printGodownList()">🖨 Print</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">Shows only <strong>Godown</strong> items that currently have stock. Works even when Office is selected at the top.</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <input id="gl-search" placeholder="🔍 Search item, brand, category..." oninput="renderGodownList()" style="flex:2;min-width:180px;margin-bottom:0"/>
+      <select id="gl-brand" onchange="renderGodownList()" style="flex:1;min-width:150px;margin-bottom:0"><option value="">All Brands</option></select>
+      <select id="gl-cat" onchange="renderGodownList()" style="flex:1;min-width:150px;margin-bottom:0"><option value="">All Categories</option></select>
+      <label style="font-size:12px;color:#555;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="gl-all" onchange="renderGodownList()"> Include zero stock</label>
+    </div>
+  </div>
+  <div id="gl-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+  <div class="card" style="padding:0;overflow:hidden"><div class="tw" id="gl-table"></div></div>
+</div>
 
 <!-- CLOSING STOCK BY BRAND -->
 <div id="page-closingstock" class="page">
@@ -1743,6 +1768,7 @@ async function load(silent){
   try{
     const allItems=dedupeById(await apiAll('item_stock_fast?select=*&order=name,id'));
     const allTxns=await api('GET','transactions?select=id,item_id,type,qty,date,note,supplier,customer,operator,created_at,credit_days,is_paid&order=created_at.desc&limit=500');
+    window._allItemsCache=allItems;
     items=allItems.filter(i=>locKey(i.location)===locKey(currentLoc));
     const ids=new Set(items.map(i=>i.id));
     txns=allTxns.filter(t=>ids.has(t.item_id));
@@ -1769,6 +1795,7 @@ function getPipeSize(name){const n=(name||'').toUpperCase();return PIPE_SIZES.fi
 function pipeBaseName(name){let n=(name||'').toUpperCase();PIPE_SIZES.forEach(s=>{n=n.replace(new RegExp('\\s*'+s.replace('MM','\\s*MM')+'\\s*'),' ').trim();});return n.trim();}
 
 function renderAll(){
+  try{ if(typeof renderGodownList==='function') renderGodownList(); }catch(e){}
   renderDash();renderItems();renderSI();renderSO();renderHistory();renderAlerts();renderReport();fillBrands();alertBadge();
   renderDmgHistory();renderPending();renderStockValue();renderBills();
   const hasQ=(siQueue.length>0)||(soQueue.length>0)||(dmgQueue.length>0);
@@ -2647,6 +2674,69 @@ function printClosingStock(){
   setTimeout(()=>{document.getElementById('csPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
 }
 
+// ── GODOWN STOCK LIST ─────────────────────────────────────────────
+function glRows(){
+  const all=(window._allItemsCache||[]).filter(i=>locKey(i.location)===locKey('GODOWN'));
+  const q=(document.getElementById('gl-search')?.value||'').trim().toLowerCase();
+  const b=document.getElementById('gl-brand')?.value||'';
+  const c=document.getElementById('gl-cat')?.value||'';
+  const inclZero=document.getElementById('gl-all')?.checked;
+  return all.filter(i=>{
+    const s=Math.max(0,parseFloat(i.stock)||0);
+    if(!inclZero&&s<=0)return false;
+    if(b&&bK(i.brand)!==b)return false;
+    if(c&&(i.category||'Other')!==c)return false;
+    if(q&&!((i.name||'').toLowerCase().includes(q)||(i.brand||'').toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q)))return false;
+    return true;
+  }).map(i=>({brand:bK(i.brand),cat:i.category||'Other',name:i.name||'',stock:Math.max(0,parseFloat(i.stock)||0),unit:i.unit||'',min:parseFloat(i.min_stock)||0}))
+    .sort((x,y)=>x.brand.localeCompare(y.brand)||x.cat.localeCompare(y.cat)||x.name.localeCompare(y.name));
+}
+function glFillFilters(){
+  const all=(window._allItemsCache||[]).filter(i=>locKey(i.location)===locKey('GODOWN'));
+  const fill=(id,vals,first)=>{const el=document.getElementById(id);if(!el)return;const cur=el.value;el.innerHTML='<option value="">'+first+'</option>'+vals.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>').join('');if(vals.includes(cur))el.value=cur;};
+  fill('gl-brand',[...new Set(all.map(i=>bK(i.brand)))].sort(),'All Brands');
+  fill('gl-cat',[...new Set(all.map(i=>i.category||'Other'))].sort(),'All Categories');
+}
+function renderGodownList(){
+  const el=document.getElementById('gl-table');if(!el)return;
+  glFillFilters();
+  const rows=glRows();
+  const sum=document.getElementById('gl-summary');
+  const brands=new Set(rows.map(r=>r.brand));
+  if(sum)sum.innerHTML=[['Items in stock',rows.length,'#1a3c6e'],['Brands',brands.size,'#185FA5']].map(x=>'<div class="metric" style="min-width:130px"><div class="ml">'+x[0]+'</div><div class="mv" style="color:'+x[2]+'">'+x[1]+'</div></div>').join('');
+  if(!rows.length){el.innerHTML='<div class="empty">No Godown items with available stock match your filters.</div>';return;}
+  let h='<table><thead><tr><th>#</th><th>Item</th><th>Category</th><th style="text-align:right">Stock Available</th><th>Unit</th></tr></thead><tbody>';
+  let last='',n=0;
+  rows.forEach(r=>{
+    if(r.brand!==last){last=r.brand;const cnt=rows.filter(x=>x.brand===r.brand).length;h+='<tr><td colspan="5" style="background:#e8f0fb;color:#185FA5;font-weight:700;border-left:4px solid #185FA5">🏷 '+r.brand+' <span style="font-weight:400;color:#555;float:right">'+cnt+' item'+(cnt!==1?'s':'')+'</span></td></tr>';}
+    n++;
+    const low=r.min>0&&r.stock<=r.min;
+    h+='<tr><td>'+n+'</td><td style="font-weight:500">'+r.name+'</td><td>'+r.cat+'</td><td style="text-align:right;font-weight:700;'+(r.stock<=0?'color:#999':low?'color:#c62828':'color:#2e7d32')+'">'+r.stock+'</td><td>'+r.unit+'</td></tr>';
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+function glMatrix(){return [['Brand','Category','Item','Stock Available','Unit']].concat(glRows().map(r=>[r.brand,r.cat,r.name,r.stock,r.unit]));}
+function exportGodownListCSV(){
+  const rows=glMatrix();if(rows.length<2){toast('Nothing to export','err');return;}
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='GodownStock-'+today()+'.csv';a.click();toast('Godown stock list exported!','ok');
+}
+function exportGodownListXLSX(){
+  const rows=glMatrix();if(rows.length<2){toast('Nothing to export','err');return;}
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:18},{wch:22},{wch:36},{wch:16},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,ws,'Godown Stock');XLSX.writeFile(wb,'GodownStock-'+today()+'.xlsx');toast('Godown stock list exported!','ok');
+}
+function printGodownList(){
+  const m=document.getElementById('glPrintMeta');
+  if(m)m.textContent='GODOWN | '+glRows().length+' items in stock | '+new Date().toLocaleString('en-IN');
+  document.getElementById('glPrintHdr').style.display='block';
+  const orig=[...document.querySelectorAll('.page')].map(p=>p.classList.contains('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-godownlist').classList.add('active');
+  window.print();
+  setTimeout(()=>{document.getElementById('glPrintHdr').style.display='none';document.querySelectorAll('.page').forEach((p,i)=>{if(orig[i])p.classList.add('active');});},1000);
+}
+
 // ── LOW STOCK REPORT BY BRAND ─────────────────────────────────────
 function renderLowStock(){
   const brandF=document.getElementById('ls-brand')?.value||'';
@@ -2756,7 +2846,7 @@ function checkPin(){if(document.getElementById('pinInput').value===ADMIN_PIN){is
 function adminLogout(){isAdmin=false;editingId=null;document.getElementById('adminLoginBtn').style.display='inline-block';document.getElementById('adminLogoutBtn').style.display='none';renderAll();toast('Logged out from admin','info');}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('pinModal').style.display!=='none')checkPin();if(e.key==='Escape'){document.getElementById('pinModal').style.display='none';document.getElementById('editTxnModal').style.display='none';}});
 
-function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}if(name==='supplierledger'){populateLedgerDropdowns();renderSupplierLedger();}if(name==='customerledger'){populateLedgerDropdowns();renderCustomerLedger();}if(name==='dupmerge'){scanDupGroups();}if(name==='cashtxn'){ctInit();}}
+function go(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');btn.classList.add('active');if(name==='transfer'){loadTransferItems();renderTransfers();}if(name==='fastmoving'){renderFastMoving();}if(name==='lowstock'){renderLowStock();}if(name==='godownlist'){renderGodownList();}if(name==='bills'){renderBills();}if(name==='partymaster'){renderPartyMaster();}if(name==='supplierledger'){populateLedgerDropdowns();renderSupplierLedger();}if(name==='customerledger'){populateLedgerDropdowns();renderCustomerLedger();}if(name==='dupmerge'){scanDupGroups();}if(name==='cashtxn'){ctInit();}}
 
 // ── EXPORTS ──────────────────────────────────────────────────────
 function exportCSV(){
@@ -4507,6 +4597,15 @@ function pickStockLocation(title){
     document.body.appendChild(o);
   });
 }
+/* Brand routing for goods received: quotation lines say "POLYCAB" for everything, but pipes are tracked under "POLYCAB PVC" in inventory.
+   Add more pairs here if another brand is split the same way (e.g. 'FINOLEX':'FINOLEX PVC'). */
+const _PIPE_BRAND_MAP={"POLYCAB":"POLYCAB PVC"};
+function _rcBrand(it){
+  const l=it.line||"";
+  const to=_PIPE_BRAND_MAP[_nk(l)];
+  if(to && typeof isPipe==="function" && isPipe({name:it.desc}) && !(typeof isWire==="function" && isWire({name:it.desc}))) return to;
+  return l;
+}
 let _rcv=null;
 const _rcEsc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 async function openReceive(no){
@@ -4530,7 +4629,8 @@ async function openReceive(no){
   }catch(e){ alert("Could not read "+locName+" items: "+e.message); return; }
   const rc=x.received||{};
   const rows=(x.items||[]).map((it,k)=>{
-    const cand=inv.filter(i=>_nk(i.name)===_nk(it.desc)&&(!it.line||_nk(i.brand)===_nk(it.line)));
+    const bd=_rcBrand(it);
+    const cand=inv.filter(i=>_nk(i.name)===_nk(it.desc)&&(!bd||_nk(i.brand)===_nk(bd)));
     const m=cand.length===1?cand[0]:null;
     const rem=Math.max(0,+(it.qty-(rc[k]||0)).toFixed(2));
     return {k,it,m,rem,done:rem<=0};
@@ -4538,7 +4638,7 @@ async function openReceive(no){
   _rcv={x,rows,inv,loc,locName};
   const picker=r=>{
     if(r.m||r.done) return "";
-    let pool=inv.filter(i=>!r.it.line||_nk(i.brand)===_nk(r.it.line));
+    let pool=inv.filter(i=>!_rcBrand(r.it)||_nk(i.brand)===_nk(_rcBrand(r.it)));
     if(!pool.length) pool=inv;
     pool=pool.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
     return '<select id="rc-m-'+r.k+'" style="width:100%;margin-top:4px;font-size:11.5px"><option value="">— name not matched: pick the '+locName+' item —</option><option value="__new__">➕ Not in '+locName+' yet — create this item there</option>'+
@@ -4595,7 +4695,7 @@ async function confirmReceive(){
     if(!document.getElementById("rc-ck-"+r.k).checked) return;
     const q=parseFloat(document.getElementById("rc-q-"+r.k).value)||0; if(q<=0) return;
     let m=r.m;
-    if(!m){ const s=document.getElementById("rc-m-"+r.k); const v=s?s.value:""; m=(v==="__new__")?{id:null,isNew:true,name:r.it.desc,brand:r.it.line||""}:(v?inv.find(i=>String(i.id)===v):null); }
+    if(!m){ const s=document.getElementById("rc-m-"+r.k); const v=s?s.value:""; m=(v==="__new__")?{id:null,isNew:true,name:r.it.desc,brand:_rcBrand(r.it)}:(v?inv.find(i=>String(i.id)===v):null); }
     if(!m){ missing.push(r.it.desc); return; }
     todo.push({...r,m,q});
   });
@@ -4613,7 +4713,7 @@ async function confirmReceive(){
       try{
         const unit=(typeof mapUnitToInventory==="function")?mapUnitToInventory(r.it.unit):(r.it.unit||"NOS");
         const cat=(typeof guessInventoryCategory==="function")?guessInventoryCategory(r.it.desc):"Other";
-        const cr=await fetch(_SB+"items",{method:"POST",headers:{..._IH,Prefer:"return=representation"},body:JSON.stringify({name:r.it.desc,category:cat,unit,opening_stock:0,min_stock:0,brand:r.it.line||"",location:loc})});
+        const cr=await fetch(_SB+"items",{method:"POST",headers:{..._IH,Prefer:"return=representation"},body:JSON.stringify({name:r.it.desc,category:cat,unit,opening_stock:0,min_stock:0,brand:_rcBrand(r.it),location:loc})});
         if(!cr.ok) throw new Error(await cr.text());
         const made=await cr.json(); r.m={id:(Array.isArray(made)?made[0]:made).id};
       }catch(e){ fails.push(r.it.desc+": could not create item in "+locName+" – "+String(e.message).slice(0,80)); continue; }
